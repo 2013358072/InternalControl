@@ -248,8 +248,6 @@ export function PlanDispatchStage() {
   const [sourceFilter, setSourceFilter] = useState('全部来源')
   const [selectedExportIds, setSelectedExportIds] = useState<string[]>([])
   const [exportMode, setExportMode] = useState(false)
-
-  /* ======== 新建计划向导状态 ======== */
   type CreateStep = 'basic' | 'scope' | 'resources' | 'preview'
   interface TeamMember { name: string; role: string }
   interface CreatePlanForm {
@@ -567,7 +565,6 @@ export function PlanDispatchStage() {
     setViewMode('list')
   }
 
-/* ======== 列表视图 ======== */
   if (viewMode === 'list') {
     return (
       <PageFrame
@@ -650,8 +647,6 @@ export function PlanDispatchStage() {
       </PageFrame>
     )
   }
-
-  /* ======== 详情视图 ======== */
   if (viewMode === 'detail') {
     return (
       <PageFrame
@@ -693,8 +688,6 @@ export function PlanDispatchStage() {
           <DetailLine label="资料需求" value={isSplit ? '5 类，已纳入分解结果' : '5 类，待分解生成'} />
         </div>
       </Card>
-
-      {/* 审批链路（时间线）：保存并提交校审后才出现，是状态展示，不可重复提交 */}
       {showApprovalChain ? (
         <Card
           title="审批链路"
@@ -825,13 +818,9 @@ export function PlanDispatchStage() {
       </PageFrame>
     )
   }
-
-  /* ======== 新建计划向导视图 ======== */
   if (viewMode === 'create') {
     const form = wizardForm
     const checkedCount = [form.name.trim(), form.unit.trim(), form.checkDomains.length > 0, form.teamLeader.trim(), form.approver.trim(), form.periodStart && form.periodEnd].filter(Boolean).length
-
-    /* 审批链预览 */
     const chainPreview = [
       { node: '计划草拟', owner: form.teamLeader || '当前用户', role: '检查组', status: '通过', opinion: '手工创建计划。' },
       ...(form.needParty ? [{ node: '党委前置研究', owner: '党委办公室', role: '党委办', status: '待处理' as const, opinion: '重大检查事项须党委前置研究。' }] : []),
@@ -873,9 +862,7 @@ export function PlanDispatchStage() {
         }
       >
         <div className="icm-grid" style={{ gridTemplateColumns: 'minmax(0,1fr) 280px', gap: 12, alignItems: 'start' }}>
-          {/* ---- 中央：主表单区 ---- */}
           <div className="icm-reveal-panel" key={currentStep} style={{ minWidth: 0 }}>
-            {/* Step 1: 基本信息 */}
             {currentStep === 'basic' ? (
               <Card title="基本信息" note="填写检查计划的核心识别信息">
                 <div className="icm-subsection-head" style={{ marginTop: 0, paddingTop: 0, borderTop: 0 }}>
@@ -952,8 +939,6 @@ export function PlanDispatchStage() {
                 </div>
               </Card>
             ) : null}
-
-            {/* Step 2: 检查依据与范围 */}
             {currentStep === 'scope' ? (
               <Card title="检查依据与范围" note="明确检查的政策依据、目标和范围">
                 <div className="icm-subsection-head" style={{ marginTop: 0, paddingTop: 0, borderTop: 0 }}>
@@ -1010,8 +995,6 @@ export function PlanDispatchStage() {
                 </div>
               </Card>
             ) : null}
-
-            {/* Step 3: 资源配置与审批 */}
             {currentStep === 'resources' ? (
               <Card title="资源配置与审批" note="检查组配置、外部专家和审批链设置">
                 <div className="icm-subsection-head" style={{ marginTop: 0, paddingTop: 0, borderTop: 0 }}>
@@ -1110,8 +1093,6 @@ export function PlanDispatchStage() {
                 </div>
               </Card>
             ) : null}
-
-            {/* Step 4: 预览与提交 */}
             {currentStep === 'preview' ? submitted ? (
               <div className="icm-reveal-panel" key="success">
                 <Card title={lastSavedAsDraft ? '草稿已保存' : '创建成功'}>
@@ -1185,8 +1166,6 @@ export function PlanDispatchStage() {
               </div>
             ) : null}
           </div>
-
-          {/* ---- 右侧：实时概览 ---- */}
           <div style={{ display: 'grid', gap: 12 }}>
             <Card title="计划概览" note="实时预览当前填写情况">
               <div style={{ fontSize: 12, lineHeight: 1.7 }}>
@@ -1452,7 +1431,7 @@ export function WorkpaperIssueStage() {
             <div className="icm-list">
               {workpapers.map((paper) => (
                 <button
-                  className={`icm-list-row ${paper.id === selectedPaperId ? 'active' : ''}`}
+                  className={`icm-list-row ${paper.id === selectedWorkpaperId ? 'active' : ''}`}
                   key={paper.id}
                   onClick={() => setSelectedWorkpaperId(paper.id)}
                   type="button"
@@ -1905,8 +1884,6 @@ export function RectifyReportStage() {
           </Card>
         ) : null}
       </div>
-
-      {/* 报送台账预览弹窗 */}
       {ledgerModal ? (
         <div className="icm-modal-mask" role="dialog" aria-modal="true">
           <div className="icm-modal icm-modal-small">
@@ -1965,8 +1942,6 @@ export function RectifyReportStage() {
           </div>
         </div>
       ) : null}
-
-      {/* 审核报送弹窗 */}
       {auditModal ? (
         <div className="icm-modal-mask" role="dialog" aria-modal="true">
           <div className="icm-modal icm-modal-small">

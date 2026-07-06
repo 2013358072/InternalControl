@@ -15,13 +15,10 @@ export default function Login() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-slate-50 via-white to-blue-50/30 relative overflow-hidden">
-      {/* Background decoration */}
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-[#0F52BA]/5 rounded-full blur-3xl -translate-y-1/4 translate-x-1/4"></div>
         <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-blue-100/40 rounded-full blur-3xl translate-y-1/4 -translate-x-1/4"></div>
       </div>
-
-      {/* Back to home */}
       <Button
         type="ghost"
         onClick={() => navigate('/')}
@@ -46,7 +43,6 @@ export default function Login() {
 
         <p className="text-center text-xs text-gray-300 mt-4">© 2026 乾知 AI · 政企数智提效专家</p>
       </div>
-
     </div>
   )
 }
