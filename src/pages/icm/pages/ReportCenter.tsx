@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Archive, Download, FileSearch, Printer, Search, Send, SquarePen, X } from 'lucide-react'
+import { ArrowLeft, Download, FileSearch, Printer, Search, Send, SquarePen, X } from 'lucide-react'
 
 import { Button, Card, DataTable, PageFrame, Segmented, Tag, Toolbar, downloadWord, printHtml } from '../components/IcmPageKit'
 
@@ -13,6 +13,14 @@ const references = [
   { type: '整改', id: 'RC-001', title: '补充供应商报价异常说明并完善评审记录', owner: '采购管理部', source: '整改闭环管理', status: '推进中' },
   { type: '证据', id: 'EV-2026-0618-02', title: '投标文件元数据与联系人比对记录', owner: '招采中心', source: '取证单台账', status: '已固化' },
   { type: '底稿', id: 'WP-PAY-003', title: '中标后预付款比例复核底稿', owner: '王锐', source: '检查底稿管理', status: '已复核' },
+]
+
+const reportTasks = [
+  { id: 'RP-2026-018', name: '采购围标风险专项检查报告', type: '专项报告' as const, date: '2026-07-01', status: '草稿', unit: '华北装备制造集团西北分公司', author: '张衡', template: 'special' as Template },
+  { id: 'RP-2026-012', name: '二季度内控检查综合报告', type: '综合报告' as const, date: '2026-06-20', status: '已归档', unit: '集团内控部', author: '李娜', template: 'summary' as Template },
+  { id: 'RP-2026-009', name: '问题整改督办通知', type: '督办通知' as const, date: '2026-06-15', status: '已发布', unit: '采购管理部', author: '王锐', template: 'notice' as Template },
+  { id: 'RP-2026-025', name: '合同审批合规专项报告', type: '专项报告' as const, date: '2026-07-03', status: '草稿', unit: '合同管理部', author: '刘峰', template: 'special' as Template },
+  { id: 'RP-2026-031', name: '2026年上半年内控检查综合报告', type: '综合报告' as const, date: '2026-07-05', status: '审核中', unit: '集团内控部', author: '陈明', template: 'summary' as Template },
 ]
 
 const templateMap = {
@@ -64,14 +72,80 @@ function buildReportHtml(title: string, selectedReferences: typeof references) {
 }
 
 export default function ReportCenter() {
-  const [template, setTemplate] = useState<Template>('special')
+  const [selectedTaskId, setSelectedTaskId] = useState<string>()
+  const [searchKeyword, setSearchKeyword] = useState('')
+
+  const selectedTask = reportTasks.find((t) => t.id === selectedTaskId)
+
+  const filteredTasks = useMemo(() => {
+    if (!searchKeyword.trim()) return reportTasks
+    const kw = searchKeyword.trim().toLowerCase()
+    return reportTasks.filter((t) =>
+      t.id.toLowerCase().includes(kw)
+      || t.name.toLowerCase().includes(kw)
+      || t.unit.toLowerCase().includes(kw)
+      || t.author.toLowerCase().includes(kw)
+      || t.type.toLowerCase().includes(kw)
+    )
+  }, [searchKeyword])
+
+  const enterDetail = (id: string) => {
+    setSelectedTaskId(id)
+    setSearchKeyword('')
+  }
+
+  const backToList = () => {
+    setSelectedTaskId(undefined)
+    setSearchKeyword('')
+  }
+
+  return selectedTask ? (
+    <ReportDetail task={selectedTask} onBack={backToList} />
+  ) : (
+    <PageFrame
+      title="报告中心"
+      subtitle="按报告任务检索，点击查看或编辑对应报告；支持从底稿、证据、问题、整改数据中引用素材。"
+    >
+      <Toolbar>
+        <div className="icm-modal-search" style={{ flex: 1, maxWidth: 360 }}>
+          <Search size={15} />
+          <input placeholder="检索报告编号、名称、单位、作者…" value={searchKeyword} onChange={(e) => setSearchKeyword(e.target.value)} />
+        </div>
+        <span className="icm-toolbar-spacer" />
+        <span style={{ color: '#64748b', fontSize: 12 }}>共 {filteredTasks.length} 条</span>
+      </Toolbar>
+
+      <Card title="报告任务列表" note="点击任一报告进入详情撰写与发布。">
+        <DataTable
+          columns={['报告编号', '报告名称', '报告类型', '编制单位', '编制人', '编制日期', '状态', '操作']}
+          rows={filteredTasks.map((t) => [
+            t.id,
+            t.name,
+            t.type,
+            t.unit,
+            t.author,
+            t.date,
+            <Tag tone={t.status === '已归档' || t.status === '已发布' ? 'green' : t.status === '审核中' ? 'amber' : 'blue'}>{t.status}</Tag>,
+            <button type="button" className="icm-link" onClick={(e) => { e.stopPropagation(); enterDetail(t.id) }}>查看报告</button>,
+          ])}
+          onRowClick={(i) => enterDetail(filteredTasks[i].id)}
+        />
+      </Card>
+    </PageFrame>
+  )
+}
+
+function ReportDetail({ task, onBack }: { task: typeof reportTasks[number]; onBack: () => void }) {
+  const [template, setTemplate] = useState<Template>(task.template)
   const [referenceOpen, setReferenceOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [type, setType] = useState<ReferenceType>('全部')
   const [selectedIds, setSelectedIds] = useState(() => new Set(references.slice(0, 4).map((item) => item.id)))
+
   const title = useMemo(() => templateMap[template], [template])
   const selectedReferences = useMemo(() => references.filter((item) => selectedIds.has(item.id)), [selectedIds])
   const html = useMemo(() => buildReportHtml(title, selectedReferences), [title, selectedReferences])
+
   const filteredReferences = useMemo(() => {
     const keyword = query.trim()
     return references.filter((item) => {
@@ -92,8 +166,8 @@ export default function ReportCenter() {
 
   return (
     <PageFrame
-      title="报告中心"
-      subtitle="负责各类检查报告的自动生成、智能撰写、审核发布和归档调阅，支持从底稿、证据、问题、整改数据中检索引用。"
+      title={<span style={{ display: 'flex', alignItems: 'center', gap: 10 }}><Button type="default-soft" icon={<ArrowLeft size={15} />} onClick={onBack}>返回列表</Button>报告详情</span>}
+      subtitle={`${task.id} · ${task.name}`}
       actions={
         <>
           <Button type="primary" icon={<Download size={16} />} onClick={() => downloadWord(`${title}.doc`, html)}>导出 Word</Button>
@@ -103,6 +177,9 @@ export default function ReportCenter() {
       }
     >
       <Toolbar>
+        <Tag tone={task.status === '已归档' || task.status === '已发布' ? 'green' : task.status === '审核中' ? 'amber' : 'blue'}>{task.status}</Tag>
+        <span style={{ color: '#64748b', fontSize: 12 }}>{task.id} · {task.unit} · {task.author} · {task.date}</span>
+        <span className="icm-toolbar-spacer" />
         <Segmented
           value={template}
           onChange={setTemplate}
@@ -112,18 +189,12 @@ export default function ReportCenter() {
             { label: '督办通知', value: 'notice' },
           ]}
         />
-        <select className="icm-select" defaultValue="采购专项检查">
-          <option>采购专项检查</option>
-          <option>2026 年上半年</option>
-          <option>2026 年二季度</option>
-        </select>
-        <input className="icm-input" placeholder="搜索报告段落、引用编号" />
         <Button type="info-soft" icon={<FileSearch size={15} />} onClick={() => setReferenceOpen(true)}>
           数据引用
         </Button>
       </Toolbar>
 
-      <div className="icm-grid" style={{ gridTemplateColumns: '300px minmax(0,1fr) 300px' }}>
+      <div className="icm-grid" style={{ gridTemplateColumns: '300px minmax(0,1fr)' }}>
         <Card title="报告模板" note="选择报告类型后自动生成结构">
           <div className="icm-list">
             {Object.entries(templateMap).map(([key, value]) => (
@@ -145,7 +216,7 @@ export default function ReportCenter() {
         >
           <div className="icm-editor">
             <h2>{title}</h2>
-            <p>生成时间：2026-07-01 · 编制部门：内控检查组 · 版本：V1.0 · 引用数据：{selectedReferences.length} 条</p>
+            <p>生成时间：{task.date} · 编制部门：{task.unit} · 版本：V1.0 · 引用数据：{selectedReferences.length} 条</p>
             <h3>一、检查概况</h3>
             <p>本次检查围绕采购管理、合同管理、资金支付及整改闭环开展，形成底稿、取证记录、问题台账和整改任务。</p>
             <h3>二、主要发现</h3>
@@ -155,38 +226,27 @@ export default function ReportCenter() {
             <h3>四、整改建议</h3>
             <p>建议责任部门补充业务说明、完善评审记录、调整供应商准入规则，并由检查组复核闭环。</p>
           </div>
-        </Card>
 
-        <div className="icm-grid">
-          <Card title="审核发布" note="报告从草稿到发布归档">
-            <div className="icm-list">
-              {[
-                ['起草状态', 'V1.0 草稿已生成', 'blue'],
-                ['主审复核', '待提交审核', 'amber'],
-                ['发布状态', '未发布', 'gray'],
-              ].map(([label, value, tone]) => (
-                <div className="icm-list-row" key={label}>
-                  <div>
-                    <div className="icm-list-title">{label}</div>
-                    <div className="icm-list-meta">{value}</div>
-                  </div>
-                  <Tag tone={tone as 'blue' | 'amber' | 'gray'}>{value}</Tag>
+          <div className="icm-subsection-head">
+            <div className="icm-card-title">审核发布</div>
+            <span style={{ color: '#748299', fontSize: 12 }}>报告从草稿到发布归档</span>
+          </div>
+          <div className="icm-list">
+            {[
+              ['起草状态', task.status === '草稿' ? 'V1.0 草稿已生成' : '已完成起草', 'blue'],
+              ['主审复核', task.status === '审核中' ? '复核中' : task.status === '草稿' ? '待提交审核' : '已通过', task.status === '审核中' ? 'amber' : task.status === '草稿' ? 'amber' : 'green'],
+              ['发布状态', task.status === '已发布' ? '已发布' : task.status === '已归档' ? '已归档' : '未发布', task.status === '已发布' || task.status === '已归档' ? 'green' : 'gray'],
+            ].map(([label, value, tone]) => (
+              <div className="icm-list-row" key={label}>
+                <div>
+                  <div className="icm-list-title">{label}</div>
+                  <div className="icm-list-meta">{value}</div>
                 </div>
-              ))}
-            </div>
-          </Card>
-
-          <Card title="归档调阅" note="历史报告统一管理">
-            <DataTable
-              columns={['报告编号', '报告名称', '状态']}
-              rows={[
-                ['RP-2026-018', '采购围标风险专项检查报告', <Tag tone="blue">草稿</Tag>],
-                ['RP-2026-012', '二季度内控检查综合报告', <Tag tone="green">已归档</Tag>],
-                ['RP-2026-009', '问题整改督办通知', <Tag tone="green">已发布</Tag>],
-              ]}
-            />
-          </Card>
-        </div>
+                <Tag tone={tone as 'blue' | 'amber' | 'green' | 'gray'}>{value}</Tag>
+              </div>
+            ))}
+          </div>
+        </Card>
       </div>
 
       {referenceOpen ? (

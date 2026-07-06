@@ -111,6 +111,12 @@ export type StandardRule = {
   applicableScenario?: string
 }
 
+export type ClauseSection = { heading: string; text: string }
+export type ClauseChunk = { id: string; text: string; score: number; section: string }
+export type CaseTimelineStep = { date: string; action: string; owner: string }
+export type TemplateSection = { heading: string; text: string }
+export type MethodStep = { title: string; text: string }
+
 export type KnowledgeBase = {
   clauses: Array<{
     id?: string
@@ -125,6 +131,12 @@ export type KnowledgeBase = {
     version?: string
     structureStatus?: string
     syncTarget?: string[]
+    docNo?: string
+    fullText?: string
+    sections?: ClauseSection[]
+    chunks?: ClauseChunk[]
+    citedByRuleIds?: string[]
+    relatedClauseIds?: string[]
   }>
   cases: Array<{
     id?: string
@@ -137,6 +149,12 @@ export type KnowledgeBase = {
     issuePattern?: string
     result?: string
     generatedMethod?: string
+    sourceWorkpaperId?: string
+    sourceEvidenceIds?: string[]
+    linkedClauseIds?: string[]
+    linkedRuleId?: string
+    timeline?: CaseTimelineStep[]
+    rectificationSummary?: string
   }>
   templates: Array<{
     id: string
@@ -146,6 +164,12 @@ export type KnowledgeBase = {
     domain: string
     bindClause: string
     reuse: string
+    docNo?: string
+    applicableScope?: string
+    sections?: TemplateSection[]
+    bindClauseIds?: string[]
+    usedByMethodIds?: string[]
+    changeLog?: Array<{ version: string; date: string; note: string }>
   }>
   methods: Array<{
     id: string
@@ -154,6 +178,11 @@ export type KnowledgeBase = {
     steps: string
     output: string
     bindTemplate: string
+    procedureSteps?: MethodStep[]
+    linkedClauseIds?: string[]
+    linkedRuleIds?: string[]
+    usedByCaseIds?: string[]
+    sampleOutputDesc?: string
   }>
   references: Array<{
     id: string

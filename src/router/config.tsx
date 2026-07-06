@@ -16,7 +16,7 @@ const EvidenceLedger = lazy(() => import('../pages/icm/pages/EvidenceLedger'))
 const IssueLedger = lazy(() => import('../pages/icm/pages/IssueLedger'))
 const RectifyBoard = lazy(() => import('../pages/icm/pages/RectifyBoard'))
 const ReportCenter = lazy(() => import('../pages/icm/pages/ReportCenter'))
-const RiskCockpit = lazy(() => import('../pages/icm/pages/RiskCockpit'))
+const VisualCockpit = lazy(() => import('../pages/icm/pages/VisualCockpit'))
 const Login = lazy(() => import('../pages/login'))
 const NotFound = lazy(() => import('../pages/NotFound'))
 
@@ -36,8 +36,13 @@ const pageByPath: Record<string, JSX.Element> = {
   '/issues': <IssueLedger />,
   '/rectify': <RectifyBoard />,
   '/report': <ReportCenter />,
-  '/cockpit': <RiskCockpit />,
+  '/cockpit': <VisualCockpit />,
 }
+
+const icmChildren = icmRoutes.map((route) => ({
+  path: route.path.slice(1),
+  element: pageByPath[route.path],
+}))
 
 const routes: RouteObject[] = [
   {
@@ -45,12 +50,14 @@ const routes: RouteObject[] = [
     element: <IcmShell />,
     children: [
       { index: true, element: <Navigate to={defaultRoute} replace /> },
-      ...icmRoutes.map((route) => ({
-        path: route.path.slice(1),
-        element: pageByPath[route.path],
-      })),
+      ...icmChildren,
     ],
   },
+  ...icmRoutes.map((route) => ({
+    path: route.path,
+    element: <IcmShell />,
+    children: [{ index: true, element: pageByPath[route.path] }],
+  })),
   { path: '/login', element: <Login /> },
   { path: '*', element: <NotFound /> },
 ]

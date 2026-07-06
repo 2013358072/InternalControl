@@ -74,13 +74,14 @@ export default function IssueLedger() {
           <DataTable
             columns={['问题编号', '问题描述', '等级', '状态', '责任部门', '期限']}
             rows={filtered.map((item) => [
-              <button className="icm-link" onClick={() => setSelectedId(item.id)}>{item.id}</button>,
+              <button className="icm-link" onClick={(e) => { e.stopPropagation(); setSelectedId(item.id) }}>{item.id}</button>,
               item.title,
               <Tag tone={tone(item.level)}>{item.level}</Tag>,
               <Tag tone={tone(item.status)}>{item.status}</Tag>,
               item.owner,
               item.deadline,
             ])}
+            onRowClick={(i) => setSelectedId(filtered[i].id)}
           />
         </Card>
 

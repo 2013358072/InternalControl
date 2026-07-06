@@ -1,11 +1,15 @@
 import { useState } from 'react'
-import { ArrowLeft, CheckCircle2, ChevronDown, ChevronUp, ClipboardList, Database, FilePlus2, FileSearch, GitBranch, LockKeyhole, Search } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, Database, FilePlus2, FileSearch, GitBranch, Loader2, LockKeyhole, Search, X } from 'lucide-react'
 
 import { Button, Card, DataTable, DetailLine, PageFrame, Tag, Toolbar, type Tone } from '../components/IcmPageKit'
 
 type PaperType = '阳性底稿' | '阴性底稿'
 type PaperStatus = '草稿' | '取证中' | '一级复核' | '二级复核' | '交叉复核' | '待归档' | '已入库' | '整改中' | '整改销号' | '留档锁定' | '调阅审批'
-type WorkpaperStep = 'body' | 'evidence' | 'review'
+type SourceTab = 'evidence' | 'finding' | 'snapshot' | 'material'
+
+function SectionTitle({ children }: { children: string }) {
+  return <div className="icm-subsection-head"><div className="icm-card-title">{children}</div></div>
+}
 
 type WorkpaperCase = {
   id: string
@@ -326,25 +330,48 @@ function tone(status: string): Tone {
   return 'blue'
 }
 
-function SectionTitle({ children }: { children: string }) {
-  return <div className="icm-subsection-head"><div className="icm-card-title">{children}</div></div>
-}
-
 export default function Workpaper() {
   const [selectedId, setSelectedId] = useState<string>()
-  const [step, setStep] = useState<WorkpaperStep>('body')
-  const [evidenceOpen, setEvidenceOpen] = useState(true)
-  const [reviewOpen, setReviewOpen] = useState(true)
+  const [sideCollapsed, setSideCollapsed] = useState(false)
+  const [modalTab, setModalTab] = useState<SourceTab | null>(null)
+  const [evidenceParsed, setEvidenceParsed] = useState(false)
+  const [reviewStep, setReviewStep] = useState(0) // 0=未复核, 1=复核中, 2=一级通过, 3=二级通过, 4=交叉通过
+  const [evidenceFolded, setEvidenceFolded] = useState(false)
+  const [reviewFolded, setReviewFolded] = useState(true)
+  const [reporting, setReporting] = useState(false)
   const [toastMsg, setToastMsg] = useState<string | null>(null)
   const selected = cases.find((item) => item.id === selectedId)
 
   // 切换底稿时重置
   const selectPaper = (id: string) => {
     setSelectedId(id)
-    setStep('body')
-    setEvidenceOpen(true)
-    setReviewOpen(true)
-    setToastMsg(null)
+    setSideCollapsed(false)
+    setModalTab(null)
+    setEvidenceParsed(false)
+    setReviewStep(0)
+    setEvidenceFolded(false)
+    setReviewFolded(true)
+    setReporting(false)
+  }
+
+  // 解析取证单
+  const parseEvidence = () => {
+    setEvidenceParsed(true)
+  }
+
+  // 进行复核
+  const doReview = () => {
+    if (reviewStep < 4) {
+      setReviewStep((s) => s + 1)
+      setEvidenceFolded(true)
+      setReviewFolded(false)
+    }
+  }
+
+  const submitRectify = () => {
+    setReporting(true)
+    setTimeout(() => setReporting(false), 1200)
+    setToastMsg('整改报送已提交至整改闭环模块')
   }
 
   if (!selected) {
@@ -371,8 +398,7 @@ export default function Workpaper() {
           </select>
         </Toolbar>
 
-        <div style={{ maxWidth: 1120, margin: '0 auto' }}>
-          <div className="icm-grid cols-3">
+        <div className="icm-grid cols-3">
             {cases.map((paper) => (
               <button
                 className="icm-card"
@@ -397,17 +423,18 @@ export default function Workpaper() {
               </button>
             ))}
           </div>
-        </div>
-      </PageFrame>
-    )
-  }
+        </PageFrame>
+      )
+    }
 
-  const isNegative = selected.type === '阴性底稿'
   const isLocked = selected.status === '留档锁定'
-  const hasIssue = selected.issue != null
+  const allReviewPassed = reviewStep >= 4
 
-  // 复核全部通过时显示问题模块
-  const allReviewPassed = selected.reviewChain.every((n) => n.status === '通过' || n.status === '不适用')
+  const reviewNodes = [
+    { node: '一级复核', owner: selected.reviewChain[0]?.owner ?? '-', status: reviewStep === 1 ? '复核中' : reviewStep >= 2 ? '通过' : '待复核', opinion: reviewStep >= 2 ? (selected.reviewChain[0]?.opinion ?? '-') : '-' },
+    { node: '二级复核', owner: selected.reviewChain[1]?.owner ?? '-', status: reviewStep === 2 ? '复核中' : reviewStep >= 3 ? '通过' : '待复核', opinion: reviewStep >= 3 ? (selected.reviewChain[1]?.opinion ?? '-') : '-' },
+    { node: '交叉复核', owner: selected.reviewChain[2]?.owner ?? '-', status: reviewStep === 3 ? '复核中' : reviewStep >= 4 ? '通过' : '待复核', opinion: reviewStep >= 4 ? (selected.reviewChain[2]?.opinion ?? '-') : '-' },
+  ]
 
   return (
     <PageFrame
@@ -415,66 +442,34 @@ export default function Workpaper() {
       subtitle={`${selected.id} · ${selected.unit} · ${selected.field}`}
       actions={
         <>
-          <Button type="default-soft" icon={<ArrowLeft size={15} />} onClick={() => { setSelectedId(undefined); setStep('body'); setToastMsg(null) }}>返回底稿列表</Button>
+          <Button type="default-soft" icon={<ArrowLeft size={15} />} onClick={() => { setSelectedId(undefined) }}>返回底稿列表</Button>
           <Button type="primary" icon={<FilePlus2 size={15} />}>新建底稿</Button>
         </>
       }
     >
-      <div className="icm-grid cols-2" style={{ alignItems: 'start', gridTemplateColumns: '360px minmax(0,1fr)' }}>
+      <div className="icm-grid cols-2" style={{ alignItems: 'start', gridTemplateColumns: sideCollapsed ? '44px minmax(0,1fr)' : '200px minmax(0,1fr)' }}>
         <div className="icm-reveal-panel">
-          <Card title="操作面板" note="按步骤推进底稿处理流程">
-            <div className="icm-list">
-              <button className={`icm-list-row ${step === 'body' ? 'active' : ''}`} type="button" onClick={() => setStep('body')}>
-                <div>
-                  <div className="icm-list-title">① 底稿正文</div>
-                  <div className="icm-list-meta">检查程序、取证事实、复核结论</div>
-                </div>
-                <Tag tone="blue">当前</Tag>
-              </button>
-              <button className={`icm-list-row ${step === 'evidence' ? 'active' : ''}`} type="button" onClick={() => setStep('evidence')}>
-                <div>
-                  <div className="icm-list-title">② 取证单</div>
-                  <div className="icm-list-meta">{selected.evidenceSheet.id}</div>
-                </div>
-                <Tag tone={step === 'evidence' || step === 'review' ? 'blue' : 'gray'}>{step === 'evidence' || step === 'review' ? '已加载' : '待查看'}</Tag>
-              </button>
-              <button className={`icm-list-row ${step === 'review' ? 'active' : ''}`} type="button" onClick={() => setStep('review')}>
-                <div>
-                  <div className="icm-list-title">③ 复核链路</div>
-                  <div className="icm-list-meta">一级、二级、交叉复核</div>
-                </div>
-                <Tag tone={step === 'review' ? 'blue' : 'gray'}>{step === 'review' ? '已加载' : '待加载'}</Tag>
-              </button>
+          {sideCollapsed ? (
+            <div className="icm-sidebar-collapsed-strip" onClick={() => setSideCollapsed(false)} title="展开操作面板">
+              <ChevronRight size={16} className="icm-ss-icon" />
+              <span className="icm-ss-label">材料</span>
             </div>
-          </Card>
-
-          <Card title="溯源入口" note="点击按钮弹窗查看详情">
-            <div className="icm-grid cols-2" style={{ gap: 8 }}>
-              <Button type="info-soft" icon={<FileSearch size={15} />} fullWidth>
-                取证单
-              </Button>
-              <Button type="info-soft" icon={<Search size={15} />} fullWidth>
-                审查线索
-              </Button>
-              <Button type="info-soft" icon={<Database size={15} />} fullWidth>
-                数据快照
-              </Button>
-              <Button type="info-soft" icon={<ClipboardList size={15} />} fullWidth>
-                业务资料
-              </Button>
+          ) : (
+            <div>
+              <Card title="溯源材料" action={
+                <button className="icm-sidebar-toggle" type="button" onClick={() => setSideCollapsed(true)} aria-label="折叠" title="折叠">
+                  <ChevronLeft size={15} />
+                </button>
+              }>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <Button type="info-soft" icon={<FileSearch size={15} />} fullWidth onClick={() => setModalTab('evidence')}>取证单</Button>
+                  <Button type="info-soft" icon={<Search size={15} />} fullWidth onClick={() => setModalTab('finding')}>审查线索</Button>
+                  <Button type="info-soft" icon={<Database size={15} />} fullWidth onClick={() => setModalTab('snapshot')}>数据快照</Button>
+                  <Button type="info-soft" icon={<ClipboardList size={15} />} fullWidth onClick={() => setModalTab('material')}>业务资料</Button>
+                </div>
+              </Card>
             </div>
-          </Card>
-
-          {selected.issue ? (
-            <Card title="问题整改链路" note="系统解析取证单后自动匹配责任部门和责任人">
-              <DetailLine label="问题编号" value={selected.issue.id} />
-              <DetailLine label="问题名称" value={selected.issue.title} />
-              <DetailLine label="责任部门" value={selected.issue.department} />
-              <DetailLine label="整改责任人" value={selected.issue.owner} />
-              <DetailLine label="整改期限" value={selected.issue.deadline} />
-              <DetailLine label="整改状态" value={<Tag tone={tone(selected.issue.rectifyStatus)}>{selected.issue.rectifyStatus}</Tag>} />
-            </Card>
-          ) : null}
+          )}
         </div>
 
         <div className="icm-reveal-panel" key={selected.id}>
@@ -498,114 +493,207 @@ export default function Workpaper() {
               <p>{selected.body.facts}</p>
               <h3>三、复核结论</h3>
               <p>{selected.body.conclusion}</p>
-              <h3>四、后续处理</h3>
-              <p>{selected.body.next}</p>
             </div>
-          </Card>
 
-          {step === 'body' ? (
-            <Card title="下一步操作" note="查看取证单和复核链路，推进底稿处理">
-              <div className="icm-empty-inline">
-                请从左侧操作面板点击「② 取证单」加载取证单解析结果，或点击「③ 复核链路」加载复核记录。
+            {!evidenceParsed ? (
+              <div style={{ marginTop: 12 }}>
+                <Button type="primary" icon={<FileSearch size={15} />} onClick={parseEvidence}>解析取证单</Button>
               </div>
-            </Card>
-          ) : null}
-
-          {step === 'evidence' || step === 'review' ? (
-            <Card
-              title="取证单解析结果"
-              note={evidenceOpen ? '系统自动解析事实要素，用于匹配问题归属和整改责任' : `${selected.evidenceSheet.id} · 已折叠`}
-              action={
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  {step === 'evidence' ? (
-                    <Button type="primary" size="sm" icon={<Search size={15} />} onClick={() => { setStep('review'); setEvidenceOpen(false) }}>进行复核</Button>
-                  ) : (
-                    <Tag tone="green">已复核</Tag>
-                  )}
-                  <button className="icm-icon-btn" type="button" onClick={() => setEvidenceOpen((v) => !v)} aria-label={evidenceOpen ? '折叠' : '展开'}>
-                    {evidenceOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                  </button>
-                </div>
-              }
-            >
-              {evidenceOpen ? (
-                <DataTable
-                  columns={['取证单', '解析要素', '被检查单位确认']}
-                  rows={selected.evidenceSheet.parsed.map((item, index) => [
-                    index === 0 ? selected.evidenceSheet.id : '',
-                    item,
-                    index === 0 ? selected.evidenceSheet.confirm : '',
-                  ])}
-                />
-              ) : null}
-            </Card>
-          ) : null}
-
-          {step === 'review' ? (
-            <>
+            ) : allReviewPassed ? (
               <Card
-                title="复核链路"
-                note={reviewOpen ? `${selected.reviewChain.filter((n) => n.status === '通过' || n.status === '不适用').length}/${selected.reviewChain.length} 节点已通过` : '已折叠'}
+                title="阳性底稿 · 已关联问题"
+                note="复核全部通过，问题台账已生成"
                 action={
-                  <button className="icm-icon-btn" type="button" onClick={() => setReviewOpen((v) => !v)} aria-label={reviewOpen ? '折叠' : '展开'}>
-                    {reviewOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                  <button className="icm-sidebar-toggle" type="button" onClick={() => setReviewFolded((v) => !v)} aria-label={reviewFolded ? '展开' : '折叠'}>
+                    {reviewFolded ? <ChevronLeft size={15} style={{ transform: 'rotate(90deg)' }} /> : <ChevronLeft size={15} style={{ transform: 'rotate(-90deg)' }} />}
                   </button>
                 }
               >
-                {reviewOpen ? (
-                  <div className="icm-review-chain">
-                    {selected.reviewChain.map((node, index) => {
-                      const isDone = node.status === '通过' || node.status === '不适用'
-                      const isActive = node.status === '处理中'
-                      return (
-                        <div className={`icm-review-node ${isDone ? 'done' : isActive ? 'active' : 'pending'}`} key={node.node}>
-                          <div className="icm-review-node-dot">
-                            {isDone ? <CheckCircle2 size={18} /> : <span>{index + 1}</span>}
-                          </div>
-                          <div className="icm-review-node-body">
-                            <div className="icm-review-node-head">
-                              <strong>{node.node}</strong>
-                              <Tag tone={isDone ? 'green' : isActive ? 'blue' : 'gray'}>{node.status}</Tag>
+                <div className="icm-grid cols-2">
+                  <DetailLine label="审查线索" value={selected.reviewFinding.id !== '-' ? `${selected.reviewFinding.id} · ${selected.reviewFinding.title}` : '无'} />
+                  <DetailLine label="置信度" value={selected.reviewFinding.confidence} />
+                  <DetailLine label="数据快照" value={`${selected.dataSnapshot.id}`} />
+                  <DetailLine label="数据包" value={selected.dataSnapshot.package} />
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
+                  <Button type="primary" icon={reporting ? <Loader2 className="icm-spin" size={15} /> : <GitBranch size={15} />} disabled={reporting} onClick={submitRectify}>报送整改</Button>
+                </div>
+                {!reviewFolded ? (
+                  <div className="icm-grid" style={{ marginTop: 12, gap: 12 }}>
+                    <Card title="取证单解析结果">
+                      <DataTable
+                        columns={['取证单', '解析要素', '被检查单位确认']}
+                        rows={selected.evidenceSheet.parsed.map((item, index) => [
+                          index === 0 ? selected.evidenceSheet.id : '',
+                          item,
+                          index === 0 ? selected.evidenceSheet.confirm : '',
+                        ])}
+                      />
+                    </Card>
+                    <Card title="复核链路" note="全部通过">
+                      <div className="icm-review-chain">
+                        {reviewNodes.map((node, index) => (
+                          <div className="icm-review-node done" key={node.node}>
+                            <div className="icm-review-node-dot"><CheckCircle2 size={18} /></div>
+                            <div className="icm-review-node-body">
+                              <div className="icm-review-node-head">
+                                <strong>{node.node}</strong>
+                                <Tag tone="green">通过</Tag>
+                              </div>
+                              <div className="icm-review-node-meta">
+                                <span>负责人：{node.owner}</span>
+                                {node.opinion !== '-' ? <span>意见：{node.opinion}</span> : null}
+                              </div>
                             </div>
-                            <div className="icm-review-node-meta">
-                              <span>负责人：{node.owner}</span>
-                              {node.opinion !== '-' ? <span>意见：{node.opinion}</span> : null}
-                            </div>
+                            {index < reviewNodes.length - 1 ? <div className="icm-review-node-line" /> : null}
                           </div>
-                          {index < selected.reviewChain.length - 1 ? <div className="icm-review-node-line" /> : null}
-                        </div>
-                      )
-                    })}
+                        ))}
+                      </div>
+                    </Card>
                   </div>
                 ) : null}
               </Card>
-
-              {allReviewPassed || hasIssue ? (
+            ) : (
+              <div className="icm-grid" style={{ marginTop: 14, gap: 12 }}>
                 <Card
-                  title="阳性底稿 · 已关联问题"
-                  note="问题台账已生成，可在问题台账页面跟踪整改进度。"
-                  action={<Button type="primary" icon={<GitBranch size={15} />}>查看问题台账</Button>}
+                  title="取证单解析结果"
+                  note="系统自动解析事实要素，用于匹配问题归属和整改责任"
+                  action={
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      {reviewStep === 0 ? (
+                        <Button type="primary" size="sm" icon={<Search size={15} />} onClick={doReview}>进行复核</Button>
+                      ) : (
+                        <Tag tone="blue">复核中</Tag>
+                      )}
+                      <button className="icm-sidebar-toggle" type="button" onClick={() => setEvidenceFolded((v) => !v)} aria-label={evidenceFolded ? '展开' : '折叠'}>
+                        {evidenceFolded ? <ChevronLeft size={15} style={{ transform: 'rotate(90deg)' }} /> : <ChevronLeft size={15} style={{ transform: 'rotate(-90deg)' }} />}
+                      </button>
+                    </div>
+                  }
                 >
-                  <div className="icm-grid cols-2">
-                    <DetailLine label="审查线索" value={selected.reviewFinding.id !== '-' ? `${selected.reviewFinding.id} · ${selected.reviewFinding.title}` : '无'} />
-                    <DetailLine label="置信度" value={selected.reviewFinding.confidence} />
-                    <DetailLine label="数据快照" value={`${selected.dataSnapshot.id}`} />
-                    <DetailLine label="数据包" value={selected.dataSnapshot.package} />
-                  </div>
+                  {!evidenceFolded ? (
+                    <DataTable
+                      columns={['取证单', '解析要素', '被检查单位确认']}
+                      rows={selected.evidenceSheet.parsed.map((item, index) => [
+                        index === 0 ? selected.evidenceSheet.id : '',
+                        item,
+                        index === 0 ? selected.evidenceSheet.confirm : '',
+                      ])}
+                    />
+                  ) : null}
                 </Card>
-              ) : null}
-            </>
-          ) : null}
 
-          {/* Toast 消息提示 */}
-          {toastMsg ? (
-            <div className="icm-toast-fixed">
-              <CheckCircle2 size={16} />
-              <span>{toastMsg}</span>
-            </div>
-          ) : null}
+                {reviewStep > 0 ? (
+                  <Card
+                    title="复核链路"
+                    note={`${reviewNodes.filter((n) => n.status === '通过').length}/${reviewNodes.length} 节点已通过`}
+                    action={
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        {!allReviewPassed ? (
+                          <Button type="primary" size="sm" onClick={doReview}>继续复核</Button>
+                        ) : null}
+                        <button className="icm-sidebar-toggle" type="button" onClick={() => setReviewFolded((v) => !v)} aria-label={reviewFolded ? '展开' : '折叠'}>
+                          {reviewFolded ? <ChevronLeft size={15} style={{ transform: 'rotate(90deg)' }} /> : <ChevronLeft size={15} style={{ transform: 'rotate(-90deg)' }} />}
+                        </button>
+                      </div>
+                    }
+                  >
+                    {!reviewFolded ? (
+                      <div className="icm-review-chain">
+                        {reviewNodes.map((node, index) => {
+                          const isDone = node.status === '通过'
+                          const isActive = node.status === '复核中'
+                          return (
+                            <div className={`icm-review-node ${isDone ? 'done' : isActive ? 'active' : 'pending'}`} key={node.node}>
+                              <div className="icm-review-node-dot">
+                                {isDone ? <CheckCircle2 size={18} /> : <span>{index + 1}</span>}
+                              </div>
+                              <div className="icm-review-node-body">
+                                <div className="icm-review-node-head">
+                                  <strong>{node.node}</strong>
+                                  <Tag tone={isDone ? 'green' : isActive ? 'blue' : 'gray'}>{node.status}</Tag>
+                                </div>
+                                <div className="icm-review-node-meta">
+                                  <span>负责人：{node.owner}</span>
+                                  {node.opinion !== '-' ? <span>意见：{node.opinion}</span> : null}
+                                </div>
+                              </div>
+                              {index < reviewNodes.length - 1 ? <div className="icm-review-node-line" /> : null}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    ) : null}
+                  </Card>
+                ) : null}
+              </div>
+            )}
+          </Card>
         </div>
       </div>
+
+      {/* Source material modal */}
+      {modalTab ? (
+        <div className="icm-modal-mask" role="dialog" aria-modal="true">
+          <div className="icm-modal icm-modal-small">
+            <div className="icm-modal-head">
+              <div>
+                <div className="icm-modal-title">
+                  {modalTab === 'evidence' ? '取证单详情' : modalTab === 'finding' ? '审查线索详情' : modalTab === 'snapshot' ? '数据快照详情' : '业务资料'}
+                </div>
+                <div className="icm-modal-sub">
+                  {modalTab === 'evidence' ? selected.evidenceSheet.id
+                    : modalTab === 'finding' ? selected.reviewFinding.id
+                    : modalTab === 'snapshot' ? selected.dataSnapshot.id
+                    : '关联业务文件'}
+                </div>
+              </div>
+              <button className="icm-modal-close" type="button" onClick={() => setModalTab(null)} aria-label="关闭"><X size={16} /></button>
+            </div>
+            <div style={{ padding: 18 }}>
+              {modalTab === 'evidence' ? (
+                <>
+                  <DetailLine label="取证单名称" value={selected.evidenceSheet.title} />
+                  <DetailLine label="被检查单位确认" value={selected.evidenceSheet.confirm} />
+                  <div style={{ marginTop: 10 }}>
+                    <div style={{ fontWeight: 800, color: '#172033', fontSize: 13, marginBottom: 6 }}>解析要素</div>
+                    <DataTable columns={['序号', '要素']} rows={selected.evidenceSheet.parsed.map((item, i) => [(i + 1).toString(), item])} />
+                  </div>
+                </>
+              ) : null}
+              {modalTab === 'finding' ? (
+                <>
+                  <DetailLine label="线索标题" value={selected.reviewFinding.title} />
+                  <DetailLine label="置信度" value={selected.reviewFinding.confidence} />
+                  <DetailLine label="命中规则" value={selected.reviewFinding.rule} />
+                </>
+              ) : null}
+              {modalTab === 'snapshot' ? (
+                <>
+                  <DetailLine label="来源数据包" value={selected.dataSnapshot.package} />
+                  <div style={{ marginTop: 10 }}>
+                    <div style={{ fontWeight: 800, color: '#172033', fontSize: 13, marginBottom: 6 }}>包含文件</div>
+                    <ul style={{ margin: 0, paddingLeft: 18, color: '#334155', fontSize: 13, lineHeight: 1.8 }}>
+                      {selected.dataSnapshot.files.map((f) => <li key={f}>{f}</li>)}
+                    </ul>
+                  </div>
+                </>
+              ) : null}
+              {modalTab === 'material' ? (
+                <div className="icm-empty-inline">当前底稿暂无关联的业务资料。可从数据快照中提取文件，或手动上传相关佐证材料。</div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Toast */}
+      {toastMsg ? (
+        <div className="icm-toast-fixed">
+          <CheckCircle2 size={16} />
+          <span>{toastMsg}</span>
+        </div>
+      ) : null}
     </PageFrame>
   )
 }

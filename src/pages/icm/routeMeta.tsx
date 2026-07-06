@@ -1,4 +1,4 @@
-import { ClipboardCheck, Database, FileText, RefreshCw, Radar } from 'lucide-react'
+import { Activity, ClipboardCheck, Database, FileBarChart2, FileText, Radar, RefreshCw } from 'lucide-react'
 
 import type { IcmRouteMeta, ModuleCategory } from './types'
 
@@ -60,6 +60,26 @@ export const icmRoutes: IcmRouteMeta[] = [
     description: '整改派单、佐证复核、销号和报告引用。',
     icon: RefreshCw,
     layout: '整改列表 -> 整改详情 -> 报告预览',
+  },
+  {
+    path: '/report',
+    title: '报告中心',
+    pageId: 'stage_report_center',
+    category: 'rectify',
+    categoryName: categoryNames.rectify,
+    description: '报告任务检索、智能撰写、审核发布和归档调阅。',
+    icon: FileBarChart2,
+    layout: '报告任务列表 -> 报告详情 -> 审核发布',
+  },
+  {
+    path: '/cockpit',
+    title: '看板',
+    pageId: 'stage_cockpit',
+    category: 'plan',
+    categoryName: categoryNames.plan,
+    description: '计划、审查、底稿、问题、整改全链路态势总览。',
+    icon: Activity,
+    layout: '全链路态势大屏',
   },
 ]
 

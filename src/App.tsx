@@ -1,4 +1,5 @@
 import { BrowserRouter } from 'react-router-dom'
+import { Suspense } from 'react'
 import { I18nextProvider } from 'react-i18next'
 
 import { AppRoutes } from './router'
@@ -8,7 +9,9 @@ function App() {
   return (
     <I18nextProvider i18n={i18n}>
       <BrowserRouter basename={__BASE_PATH__}>
-        <AppRoutes />
+        <Suspense fallback={<div />}>
+          <AppRoutes />
+        </Suspense>
       </BrowserRouter>
     </I18nextProvider>
   )

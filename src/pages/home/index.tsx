@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+﻿import { useMemo, useState } from 'react'
 import {
   AlertTriangle,
   CheckCircle2,
@@ -128,8 +128,8 @@ export default function HomePage() {
       <header className="icm-topbar">
         <div className="brand-mark">IC</div>
         <div>
-          <div className="brand-title">央国企内控检查管理系统</div>
-          <div className="brand-sub">一期可行性原型 · 采购围标风险监管价值演示</div>
+          <div className="brand-title">内控检查管理系统</div>
+          <div className="brand-sub">内控检查全流程演示</div>
         </div>
         <div className="topbar-search">
           <Search size={16} />
