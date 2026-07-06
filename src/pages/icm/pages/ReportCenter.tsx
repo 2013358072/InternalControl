@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { ArrowLeft, Download, FileSearch, Printer, Search, Send, SquarePen, X } from 'lucide-react'
 
-import { Button, Card, DataTable, PageFrame, Segmented, Tag, Toolbar, downloadWord, printHtml } from '../components/IcmPageKit'
+import { Button, Card, DataTable, PageFrame, Tag, Toolbar, downloadWord, printHtml } from '../components/IcmPageKit'
 
 type Template = 'special' | 'summary' | 'notice'
 type ReferenceType = '全部' | '底稿' | '证据' | '问题' | '整改'
@@ -27,12 +27,6 @@ const templateMap = {
   special: '采购围标风险专项检查报告',
   summary: '内控检查综合报告',
   notice: '问题整改督办通知',
-}
-
-const templateMeta = {
-  special: '适用于专项检查结论、问题事实和整改建议汇总。',
-  summary: '适用于集团周期性内控检查综合汇报。',
-  notice: '适用于向责任部门下发整改要求和时限。',
 }
 
 function buildReportHtml(title: string, selectedReferences: typeof references) {
@@ -136,13 +130,36 @@ export default function ReportCenter() {
 }
 
 function ReportDetail({ task, onBack }: { task: typeof reportTasks[number]; onBack: () => void }) {
-  const [template, setTemplate] = useState<Template>(task.template)
+  const [localStatus, setLocalStatus] = useState(task.status)
+  const isDraft = localStatus === '草稿'
+  const isReviewing = localStatus === '审核中'
   const [referenceOpen, setReferenceOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [type, setType] = useState<ReferenceType>('全部')
   const [selectedIds, setSelectedIds] = useState(() => new Set(references.slice(0, 4).map((item) => item.id)))
+  const [auditExpanded, setAuditExpanded] = useState(true)
+  const [toast, setToast] = useState('')
 
-  const title = useMemo(() => templateMap[template], [template])
+  const handleSubmit = () => {
+    setLocalStatus('审核中')
+    setAuditExpanded(true)
+    setToast('已提交审核，主审复核中')
+    setTimeout(() => setToast(''), 2200)
+  }
+  const handlePublish = () => {
+    setLocalStatus('已发布')
+    setAuditExpanded(true)
+    setToast('已发布')
+    setTimeout(() => setToast(''), 2200)
+  }
+  const handleArchive = () => {
+    setLocalStatus('已归档')
+    setAuditExpanded(true)
+    setToast('已归档')
+    setTimeout(() => setToast(''), 2200)
+  }
+
+  const title = templateMap[task.template]
   const selectedReferences = useMemo(() => references.filter((item) => selectedIds.has(item.id)), [selectedIds])
   const html = useMemo(() => buildReportHtml(title, selectedReferences), [title, selectedReferences])
 
@@ -164,55 +181,40 @@ function ReportDetail({ task, onBack }: { task: typeof reportTasks[number]; onBa
     })
   }
 
-  return (
-    <PageFrame
-      title={<span style={{ display: 'flex', alignItems: 'center', gap: 10 }}><Button type="default-soft" icon={<ArrowLeft size={15} />} onClick={onBack}>返回列表</Button>报告详情</span>}
-      subtitle={`${task.id} · ${task.name}`}
-      actions={
-        <>
-          <Button type="primary" icon={<Download size={16} />} onClick={() => downloadWord(`${title}.doc`, html)}>导出 Word</Button>
-          <Button type="primary-soft" icon={<Printer size={16} />} onClick={() => printHtml(html)}>导出 PDF</Button>
-          <Button type="success-soft" icon={<Send size={16} />}>提交审核</Button>
-        </>
-      }
-    >
-      <Toolbar>
-        <Tag tone={task.status === '已归档' || task.status === '已发布' ? 'green' : task.status === '审核中' ? 'amber' : 'blue'}>{task.status}</Tag>
-        <span style={{ color: '#64748b', fontSize: 12 }}>{task.id} · {task.unit} · {task.author} · {task.date}</span>
-        <span className="icm-toolbar-spacer" />
-        <Segmented
-          value={template}
-          onChange={setTemplate}
-          options={[
-            { label: '专项报告', value: 'special' },
-            { label: '综合报告', value: 'summary' },
-            { label: '督办通知', value: 'notice' },
-          ]}
-        />
-        <Button type="info-soft" icon={<FileSearch size={15} />} onClick={() => setReferenceOpen(true)}>
-          数据引用
-        </Button>
-      </Toolbar>
+  const statusTag = localStatus === '已归档' || localStatus === '已发布' ? 'green' : localStatus === '审核中' ? 'amber' : 'blue'
 
-      <div className="icm-grid" style={{ gridTemplateColumns: '300px minmax(0,1fr)' }}>
-        <Card title="报告模板" note="选择报告类型后自动生成结构">
-          <div className="icm-list">
-            {Object.entries(templateMap).map(([key, value]) => (
-              <button className={`icm-list-row ${key === template ? 'active' : ''}`} key={key} onClick={() => setTemplate(key as Template)}>
-                <div>
-                  <div className="icm-list-title">{value}</div>
-                  <div className="icm-list-meta">{templateMeta[key as Template]}</div>
-                </div>
-                <Tag tone={key === template ? 'blue' : 'gray'}>{key === template ? '选中' : '模板'}</Tag>
-              </button>
-            ))}
-          </div>
-        </Card>
+  const showDraftBtns = isDraft
+  const showReviewBtns = isReviewing
+
+  return (
+    <>
+      <PageFrame
+        title={<span style={{ display: 'flex', alignItems: 'center', gap: 10 }}><Button type="default-soft" icon={<ArrowLeft size={15} />} onClick={onBack}>返回列表</Button>报告详情</span>}
+        subtitle={`${task.id} · ${task.name}`}
+      >
+        <Toolbar>
+          <Tag tone={statusTag}>{localStatus}</Tag>
+          <span style={{ color: '#64748b', fontSize: 12 }}>{task.id} · {task.unit} · {task.author} · {task.date}</span>
+          <span className="icm-toolbar-spacer" />
+          <Button type="info-soft" icon={<FileSearch size={15} />} onClick={() => setReferenceOpen(true)}>
+            数据引用
+          </Button>
+          {showDraftBtns && (
+            <>
+              <Button type="primary" icon={<Download size={16} />} onClick={() => downloadWord(`${title}.doc`, html)}>导出 Word</Button>
+              <Button type="primary-soft" icon={<Printer size={16} />} onClick={() => printHtml(html)}>导出 PDF</Button>
+              <Button type="success-soft" icon={<Send size={16} />} onClick={handleSubmit}>提交审核</Button>
+            </>
+          )}
+          {showReviewBtns && (
+            <Button type="success-soft" icon={<Send size={16} />} onClick={handlePublish}>确认发布</Button>
+          )}
+        </Toolbar>
 
         <Card
           title="智能撰写"
           note="依据当前模板和引用数据生成报告正文"
-          action={<Button type="primary-soft" icon={<SquarePen size={15} />}>保存草稿</Button>}
+          action={isDraft ? <Button type="primary-soft" icon={<SquarePen size={15} />}>保存草稿</Button> : undefined}
         >
           <div className="icm-editor">
             <h2>{title}</h2>
@@ -227,72 +229,108 @@ function ReportDetail({ task, onBack }: { task: typeof reportTasks[number]; onBa
             <p>建议责任部门补充业务说明、完善评审记录、调整供应商准入规则，并由检查组复核闭环。</p>
           </div>
 
-          <div className="icm-subsection-head">
+          <div className="icm-subsection-head" onClick={() => setAuditExpanded((v) => !v)} style={{ cursor: 'pointer' }}>
             <div className="icm-card-title">审核发布</div>
-            <span style={{ color: '#748299', fontSize: 12 }}>报告从草稿到发布归档</span>
+            <span style={{ color: '#748299', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
+              {auditExpanded ? '收起' : '展开'} · {isDraft ? '草稿' : isReviewing ? '复核中' : localStatus}
+            </span>
           </div>
-          <div className="icm-list">
-            {[
-              ['起草状态', task.status === '草稿' ? 'V1.0 草稿已生成' : '已完成起草', 'blue'],
-              ['主审复核', task.status === '审核中' ? '复核中' : task.status === '草稿' ? '待提交审核' : '已通过', task.status === '审核中' ? 'amber' : task.status === '草稿' ? 'amber' : 'green'],
-              ['发布状态', task.status === '已发布' ? '已发布' : task.status === '已归档' ? '已归档' : '未发布', task.status === '已发布' || task.status === '已归档' ? 'green' : 'gray'],
-            ].map(([label, value, tone]) => (
-              <div className="icm-list-row" key={label}>
+          {auditExpanded && (
+            <div className="icm-list">
+              {/* 起草 */}
+              <div className="icm-list-row">
                 <div>
-                  <div className="icm-list-title">{label}</div>
-                  <div className="icm-list-meta">{value}</div>
+                  <div className="icm-list-title">起草状态</div>
+                  <div className="icm-list-meta">V1.0 草稿已生成</div>
                 </div>
-                <Tag tone={tone as 'blue' | 'amber' | 'green' | 'gray'}>{value}</Tag>
+                <Tag tone="blue">已完成起草</Tag>
               </div>
-            ))}
-          </div>
+              {/* 主审复核 */}
+              <div className={`icm-list-row ${isReviewing ? 'active' : ''}`}>
+                <div>
+                  <div className="icm-list-title">主审复核</div>
+                  <div className="icm-list-meta">{localStatus === '草稿' ? '待提交审核' : isReviewing ? '复核中' : '已通过'}</div>
+                </div>
+                {isDraft ? (
+                  <Button type="primary-soft" onClick={handleSubmit}>提交审核</Button>
+                ) : isReviewing ? (
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <Button type="success-soft" onClick={handlePublish}>审核通过</Button>
+                    <Button type="default-soft" onClick={() => { setLocalStatus('草稿'); setToast('已退回至草稿'); setTimeout(() => setToast(''), 2200) }}>退回修改</Button>
+                  </div>
+                ) : (
+                  <Tag tone="green">已通过</Tag>
+                )}
+              </div>
+              {/* 发布 */}
+              <div className="icm-list-row">
+                <div>
+                  <div className="icm-list-title">发布状态</div>
+                  <div className="icm-list-meta">{localStatus === '已发布' ? '已发布' : localStatus === '已归档' ? '已归档至档案库' : '未发布'}</div>
+                </div>
+                {localStatus === '已发布' ? (
+                  <Tag tone="green">已发布</Tag>
+                ) : localStatus === '审核中' ? (
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <Button type="primary-soft" onClick={handlePublish}>确认发布</Button>
+                    <Button type="default-soft" onClick={handleArchive}>直接归档</Button>
+                  </div>
+                ) : localStatus === '已归档' ? (
+                  <Tag tone="green">已归档</Tag>
+                ) : (
+                  <Tag tone="gray">未发布</Tag>
+                )}
+              </div>
+            </div>
+          )}
         </Card>
-      </div>
 
-      {referenceOpen ? (
-        <div className="icm-modal-mask" role="dialog" aria-modal="true">
-          <div className="icm-modal">
-            <div className="icm-modal-head">
-              <div>
-                <div className="icm-modal-title">数据引用检索</div>
-                <div className="icm-modal-sub">从底稿、证据、问题和整改数据中选择报告引用项</div>
-              </div>
-              <button className="icm-modal-close" type="button" onClick={() => setReferenceOpen(false)} aria-label="关闭">
-                <X size={16} />
-              </button>
-            </div>
-            <div className="icm-modal-tools">
-              <div className="icm-modal-search">
-                <Search size={15} />
-                <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索编号、标题、责任部门、来源" />
-              </div>
-              <select className="icm-select" value={type} onChange={(event) => setType(event.target.value as ReferenceType)}>
-                <option>全部</option>
-                <option>底稿</option>
-                <option>证据</option>
-                <option>问题</option>
-                <option>整改</option>
-              </select>
-            </div>
-            <div className="icm-reference-list">
-              {filteredReferences.map((item) => (
-                <button className={`icm-reference-row ${selectedIds.has(item.id) ? 'active' : ''}`} key={item.id} onClick={() => toggleReference(item.id)}>
-                  <span className="icm-reference-check">{selectedIds.has(item.id) ? '✓' : ''}</span>
-                  <span>
-                    <strong>{item.title}</strong>
-                    <em>{item.id} · {item.source} · {item.owner}</em>
-                  </span>
-                  <Tag tone={item.type === '问题' ? 'amber' : item.type === '整改' ? 'green' : 'blue'}>{item.type}</Tag>
+        {referenceOpen ? (
+          <div className="icm-modal-mask" role="dialog" aria-modal="true">
+            <div className="icm-modal">
+              <div className="icm-modal-head">
+                <div>
+                  <div className="icm-modal-title">数据引用检索</div>
+                  <div className="icm-modal-sub">从底稿、证据、问题和整改数据中选择报告引用项</div>
+                </div>
+                <button className="icm-modal-close" type="button" onClick={() => setReferenceOpen(false)} aria-label="关闭">
+                  <X size={16} />
                 </button>
-              ))}
-            </div>
-            <div className="icm-modal-foot">
-              <span>已选择 {selectedReferences.length} 条引用</span>
-              <Button type="primary" onClick={() => setReferenceOpen(false)}>确认引用</Button>
+              </div>
+              <div className="icm-modal-tools">
+                <div className="icm-modal-search">
+                  <Search size={15} />
+                  <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索编号、标题、责任部门、来源" />
+                </div>
+                <select className="icm-select" value={type} onChange={(event) => setType(event.target.value as ReferenceType)}>
+                  <option>全部</option>
+                  <option>底稿</option>
+                  <option>证据</option>
+                  <option>问题</option>
+                  <option>整改</option>
+                </select>
+              </div>
+              <div className="icm-reference-list">
+                {filteredReferences.map((item) => (
+                  <button className={`icm-reference-row ${selectedIds.has(item.id) ? 'active' : ''}`} key={item.id} onClick={() => toggleReference(item.id)}>
+                    <span className="icm-reference-check">{selectedIds.has(item.id) ? '✓' : ''}</span>
+                    <span>
+                      <strong>{item.title}</strong>
+                      <em>{item.id} · {item.source} · {item.owner}</em>
+                    </span>
+                    <Tag tone={item.type === '问题' ? 'amber' : item.type === '整改' ? 'green' : 'blue'}>{item.type}</Tag>
+                  </button>
+                ))}
+              </div>
+              <div className="icm-modal-foot">
+                <span>已选择 {selectedReferences.length} 条引用</span>
+                <Button type="primary" onClick={() => setReferenceOpen(false)}>确认引用</Button>
+              </div>
             </div>
           </div>
-        </div>
-      ) : null}
-    </PageFrame>
+        ) : null}
+      </PageFrame>
+      {toast ? <div className="icm-toast-fixed">{toast}</div> : null}
+    </>
   )
 }
