@@ -350,7 +350,7 @@ export default function ReviewWorkbench() {
   )
 
   const renderResultStep = () => (
-    <Card title="审查结果处理" note="线索不能直接定案，需查看依据、生成底稿，再按复核结论转问题台账。" action={<Tag tone="green">审查完成</Tag>}>
+    <Card title="审查结果处理" note="线索不能直接定案，需查看依据、生成底稿，再按复核结论确认问题。" action={<Tag tone="green">审查完成</Tag>}>
       <DataTable
         columns={['问题线索', '等级', '命中规则', '置信度', '下一步操作']}
         rows={findings.map((item) => {
@@ -496,7 +496,7 @@ export default function ReviewWorkbench() {
           <div className="icm-modal-mask" role="dialog" aria-modal="true">
             <div className="icm-modal icm-modal-small">
               <div className="icm-modal-head">
-                <div><div className="icm-modal-title">转化问题台账</div><div className="icm-modal-sub">确认后进入整改闭环</div></div>
+                <div><div className="icm-modal-title">确认问题</div><div className="icm-modal-sub">确认后进入整改闭环</div></div>
                 <button className="icm-modal-close" type="button" onClick={() => setIssueTarget(null)} aria-label="关闭"><X size={16} /></button>
               </div>
               <div style={{ padding: 18, display: 'grid', gap: 12 }}>

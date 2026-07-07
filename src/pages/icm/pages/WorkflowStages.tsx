@@ -1619,23 +1619,32 @@ export function WorkpaperIssueStage() {
 
 export function RectifyReportStage() {
   const [selectedRectifyId, setSelectedRectifyId] = useState<string>()
+  const [localRects, setLocalRects] = useState(rectifications)
   const [modal, setModal] = useState<ReportModal>(null)
   const [selectedTemplate, setSelectedTemplate] = useState('')
   const [selectedSourceIds, setSelectedSourceIds] = useState<string[]>([])
-  const [searchKeyword, setSearchKeyword] = useState('')
   const [listSearch, setListSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('全部')
-  const [expandedGroup, setExpandedGroup] = useState('问题')
   const [flow, setFlow] = useState<ReportFlow>('editing')
   const [auditStep, setAuditStep] = useState(-1)
   const [ledgerModal, setLedgerModal] = useState(false)
   const [auditModal, setAuditModal] = useState(false)
   const [auditRunning, setAuditRunning] = useState(false)
   const [auditDone, setAuditDone] = useState(false)
-  const selected = rectifications.find((item) => item.id === selectedRectifyId)
+  const [draftSummary, setDraftSummary] = useState('')
+  const [draftFact, setDraftFact] = useState('')
+  const [draftReferences, setDraftReferences] = useState('')
+  const [draftReviewBasis, setDraftReviewBasis] = useState('')
+  const [draftSaved, setDraftSaved] = useState(false)
+
+  const selected = localRects.find((item) => item.id === selectedRectifyId)
+
+  // 整改中只查看整改信息；已整改后进入报告编制。
+  const showWorkbench = selected && selected.lane === '整改中'
+  const showReport = selected && selected.lane === '已整改'
 
   const filteredRectifications = useMemo(() => {
-    let items = rectifications
+    let items = localRects
     if (listSearch.trim()) {
       const kw = listSearch.trim().toLowerCase()
       items = items.filter((r) => r.issue.toLowerCase().includes(kw) || r.id.toLowerCase().includes(kw) || r.owner.toLowerCase().includes(kw))
@@ -1644,7 +1653,11 @@ export function RectifyReportStage() {
       items = items.filter((r) => r.lane === statusFilter)
     }
     return items
-  }, [listSearch, statusFilter])
+  }, [localRects, listSearch, statusFilter])
+
+  const updateRect = (id: string, patch: Partial<Rectification>) => {
+    setLocalRects((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)))
+  }
 
   const enterDetail = (id: string) => {
     setSelectedRectifyId(id)
@@ -1653,85 +1666,90 @@ export function RectifyReportStage() {
     setFlow('editing')
     setAuditStep(-1)
     setListSearch('')
+    setDraftSummary('')
+    setDraftFact('')
+    setDraftReferences('')
+    setDraftReviewBasis('')
+    setDraftSaved(false)
   }
 
   const backToList = () => {
     setSelectedRectifyId(undefined)
   }
 
-  const toggleSource = (id: string) => {
-    setSelectedSourceIds((ids) => ids.includes(id) ? ids.filter((item) => item !== id) : [...ids, id])
-    setFlow('editing')
-    setAuditStep(-1)
-  }
+  // ──── Report flow (only for 已整改) ────
+  const srcIssue = useMemo(() => issues.find((issue) => issue.rectificationId === selected?.id), [selected])
+  const srcWorkpaper = useMemo(() => workpapers.find((paper) => paper.id === srcIssue?.workpaperId), [srcIssue])
+  const srcEvidence = useMemo(() => evidences.filter((item) => srcIssue?.evidenceIds?.includes(item.id)), [srcIssue])
 
+  const srcItems = useMemo(() => {
+    if (!selected || !srcIssue) return []
+    const chainIds = new Set<string>()
+    chainIds.add(selected.id); chainIds.add(srcIssue.id)
+    if (srcWorkpaper) chainIds.add(srcWorkpaper.id)
+    srcEvidence.forEach((e) => chainIds.add(e.id))
+    return [
+      ...workpapers.filter((w) => chainIds.has(w.id)).map((w) => ({ id: w.id, type: '底稿', title: w.title, owner: w.reviewer, status: w.status })),
+      ...issues.filter((i) => chainIds.has(i.id)).map((i) => ({ id: i.id, type: '问题', title: i.title, owner: i.owner, status: i.status })),
+      ...evidences.filter((e) => chainIds.has(e.id)).map((e) => ({ id: e.id, type: '取证', title: e.title, owner: e.owner, status: e.status })),
+      { id: selected.id, type: '整改', title: selected.issue, owner: selected.owner, status: selected.lane },
+      ...rules.filter((r) => r.domain === (srcIssue?.level === '重大' ? '采购' : '合同')).slice(0, 2).map((r) => ({ id: r.id, type: '规则', title: r.name, owner: r.domain, status: '已同步' })),
+    ]
+  }, [selected, srcIssue, srcWorkpaper, srcEvidence])
+
+  const selectedSrcItems = useMemo(() => srcItems.filter((item) => selectedSourceIds.includes(item.id)), [srcItems, selectedSourceIds])
+  const groupedSources = ['问题', '底稿', '取证', '整改', '规则'].map((type) => ({ type, items: srcItems.filter((item) => item.type === type) }))
+  const canDraft = Boolean(selectedTemplate && selectedSourceIds.length)
+  const draftReady = flow !== 'editing'
+  const ledgerReady = flow === 'ledger' || flow === 'reviewing' || flow === 'approved' || flow === 'archived'
+  const reviewNodes2 = ['编制确认', '组长复核', '内控审核', '报送确认']
+  const flowTag = flow === 'editing' ? '待撰写' : flow === 'drafted' ? '已成稿' : flow === 'ledger' ? '待审核' : flow === 'reviewing' ? '审核中' : flow === 'approved' ? '待入库' : '已入库'
+
+  const toggleSource = (id: string) => { setSelectedSourceIds((ids) => ids.includes(id) ? ids.filter((item) => item !== id) : [...ids, id]); setFlow('editing'); setAuditStep(-1); setDraftSaved(false) }
   const generateDraft = () => {
-    if (!canDraft) return
+    if (!canDraft || !selected) return
+    setDraftSummary(`本报告围绕"${selected.issue}"形成，责任部门为${selected.owner}，当前整改状态为${selected.lane}。`)
+    setDraftFact(srcIssue ? `${srcIssue.title}，问题等级为${srcIssue.level}，整改期限为${srcIssue.deadline}。` : '当前整改事项未关联问题记录。')
+    setDraftReferences(selectedSrcItems.map((item) => `${item.type}-${item.id}`).join('、') || '待补充报告素材。')
+    setDraftReviewBasis('报告按整改事项逐项确认事实、佐证、责任部门、复核意见和报送状态。')
+    setDraftSaved(false)
     setFlow('drafted')
     setAuditStep(-1)
   }
-
-  const generateLedger = () => {
+  const saveDraft = () => {
     if (!draftReady) return
-    setLedgerModal(true)
+    setDraftSaved(true)
   }
-
-  const confirmLedger = () => {
-    setLedgerModal(false)
-    setFlow('ledger')
-    setAuditStep(-1)
-    setAuditDone(false)
-  }
-
-  const submitAudit = () => {
-    if (flow !== 'ledger') return
-    setAuditModal(true)
-    setAuditRunning(false)
-    setAuditDone(false)
-    setAuditStep(-1)
-  }
-
+  const generateLedger = () => { if (!draftReady) return; setLedgerModal(true) }
+  const confirmLedger = () => { setLedgerModal(false); setFlow('ledger'); setAuditStep(-1) }
+  const submitAudit = () => { if (flow !== 'ledger') return; setAuditModal(true); setAuditRunning(false); setAuditDone(false); setAuditStep(-1) }
   const startAuditFlow = () => {
-    setAuditRunning(true)
-    setAuditStep(0)
-    reviewNodes2.forEach((_, index) => {
-      window.setTimeout(() => setAuditStep(index), 520 * (index + 1))
-    })
-    window.setTimeout(() => {
-      setAuditStep(reviewNodes2.length - 1)
-      setAuditDone(true)
-      setAuditRunning(false)
-    }, 520 * (reviewNodes2.length + 1))
+    setAuditRunning(true); setAuditStep(0)
+    reviewNodes2.forEach((_, i) => { window.setTimeout(() => setAuditStep(i), 520 * (i + 1)) })
+    window.setTimeout(() => { setAuditStep(reviewNodes2.length - 1); setAuditDone(true); setAuditRunning(false) }, 520 * (reviewNodes2.length + 1))
   }
-
-  const confirmArchive = () => {
-    setAuditModal(false)
-    setFlow('approved')
-  }
-
+  const confirmArchive = () => { setAuditModal(false); setFlow('approved') }
   const archiveReport = () => {
-    if (flow !== 'approved') return
+    if (flow !== 'approved' || !selected) return
     setFlow('archived')
+    updateRect(selected.id, { lane: '已整改', verify: '成立', writeBack: '报告已归档，整改记录保持已整改。' })
   }
-
-  // KPIs for both list and detail views
-  const closedCount = issues.filter((item) => item.status === '已销号').length
-  const overdueCount = issues.filter((item) => item.status !== '已销号' && item.deadline < '2026-07-02').length
-  const proofTotal = rectifications.reduce((total, item) => total + item.proof, 0)
-  const proofPassed = rectifications.filter((item) => item.verify === '成立').length
+  // KPI from rectifications
+  const closedCount = localRects.filter((r) => r.lane === '已整改').length
+  const overdueCount = localRects.filter((r) => r.lane === '整改中').length
+  const proofTotal = localRects.reduce((total, r) => total + r.proof, 0)
+  const proofPassed = localRects.filter((r) => r.verify === '成立').length
   const rectificationMetrics = [
-    { label: '整改闭环率', value: `${Math.round((closedCount / Math.max(issues.length, 1)) * 100)}%`, note: `${closedCount}/${issues.length} 项已销号`, tone: 'green' as Tone },
+    { label: '整改完成率', value: `${Math.round((closedCount / Math.max(localRects.length, 1)) * 100)}%`, note: `${closedCount}/${localRects.length} 已整改`, tone: 'green' as Tone },
     { label: '超期整改', value: `${overdueCount}`, note: '按整改期限自动预警', tone: overdueCount ? 'red' as Tone : 'green' as Tone },
     { label: '佐证材料', value: `${proofTotal}`, note: `${proofPassed} 项通过复核`, tone: 'blue' as Tone },
-    { label: '回访关注', value: '3/6/12', note: '销号后回访节点', tone: 'amber' as Tone },
+    { label: '回访关注', value: '3/6/12', note: '整改后回访节点', tone: 'amber' as Tone },
   ]
 
+  // ═══════════ LIST VIEW ═══════════
   if (!selected) {
     return (
-      <PageFrame
-        title="整改报告中心"
-        subtitle="按整改任务检索，点击进入报告编制、审核报送与入库流程。"
-      >
+      <PageFrame title="整改与报告" subtitle="整改中查看执行信息；已整改事项可编制报告、审核报送与入库。">
         <Toolbar>
           <div className="icm-modal-search" style={{ flex: 1, maxWidth: 360 }}>
             <Search size={15} />
@@ -1740,31 +1758,22 @@ export function RectifyReportStage() {
           <span className="icm-toolbar-spacer" />
           <span style={{ color: '#64748b', fontSize: 12 }}>共 {filteredRectifications.length} 条</span>
           <select className="icm-select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={{ marginLeft: 8 }}>
-            <option>全部</option>
-            <option>整改中</option>
-            <option>待整改</option>
-            <option>待复核</option>
-            <option>已销号</option>
+            <option>全部</option><option>整改中</option><option>已整改</option>
           </select>
         </Toolbar>
-
-        <Card title="整改任务列表" note="点击任一整改事项进入报告编制。">
-
-        <div className="icm-grid cols-4" style={{ marginBottom: 14 }}>
-          {rectificationMetrics.map((item) => (
-            <Kpi key={item.label} value={item.value} label={item.label} note={item.note} tone={item.tone} />
-          ))}
-        </div>
-
-        <DataTable
+        <Card title="整改任务列表" note="整改中只查看执行信息 · 已整改后编制报告">
+          <div className="icm-grid cols-4" style={{ marginBottom: 14 }}>
+            {rectificationMetrics.map((item) => <Kpi key={item.label} value={item.value} label={item.label} note={item.note} tone={item.tone} />)}
+          </div>
+          <DataTable
             columns={['编号', '整改事项', '责任部门', '状态', '佐证', '操作']}
             rows={filteredRectifications.map((r) => [
-              r.id,
-              r.issue,
-              r.owner,
+              r.id, r.issue, r.owner,
               <Tag tone={statusTone(r.lane)}>{r.lane}</Tag>,
               `${r.proof} 份`,
-              <button type="button" className="icm-link" onClick={(e) => { e.stopPropagation(); enterDetail(r.id) }}>编制报告</button>,
+              r.lane === '已整改'
+                ? <button type="button" className="icm-link" onClick={(e) => { e.stopPropagation(); enterDetail(r.id) }}>编制报告</button>
+                : <button type="button" className="icm-link" onClick={(e) => { e.stopPropagation(); enterDetail(r.id) }}>查看整改</button>,
             ])}
             onRowClick={(i) => enterDetail(filteredRectifications[i].id)}
           />
@@ -1773,47 +1782,74 @@ export function RectifyReportStage() {
     )
   }
 
-  const srcIssue = issues.find((issue) => issue.rectificationId === selected.id)
-  const srcWorkpaper = workpapers.find((paper) => paper.id === srcIssue?.workpaperId)
-  const srcEvidence = evidences.filter((item) => srcIssue?.evidenceIds.includes(item.id))
-  const srcItems = [
-    ...workpapers.map((item) => ({ id: item.id, type: '底稿', title: item.title, owner: item.reviewer, status: item.status })),
-    ...issues.map((item) => ({ id: item.id, type: '问题', title: item.title, owner: item.owner, status: item.status })),
-    ...evidences.map((item) => ({ id: item.id, type: '取证', title: item.title, owner: item.owner, status: item.status })),
-    ...rectifications.map((item) => ({ id: item.id, type: '整改', title: item.issue, owner: item.owner, status: item.lane })),
-    ...reports.basket.map((item) => ({ id: item.id, type: item.type === '证据' ? '取证' : item.type, title: item.title, owner: item.owner, status: '已入报告篮' })),
-    ...rules.slice(0, 3).map((item) => ({ id: item.id, type: '规则', title: item.name, owner: item.domain, status: '已同步' })),
-  ]
-  const filteredSrcItems = srcItems.filter((item) => !searchKeyword || `${item.id}${item.type}${item.title}${item.owner}`.includes(searchKeyword))
-  const selectedSrcItems = srcItems.filter((item) => selectedSourceIds.includes(item.id))
-  const materialGroups2 = ['问题', '底稿', '取证', '整改', '规则']
-  const groupedSources = materialGroups2.map((type) => ({
-    type,
-    items: filteredSrcItems.filter((item) => item.type === type),
-  }))
-  const canDraft = Boolean(selectedTemplate && selectedSourceIds.length)
-  const draftReady = flow !== 'editing'
-  const ledgerReady = flow === 'ledger' || flow === 'reviewing' || flow === 'approved' || flow === 'archived'
-  const reviewNodes2 = ['编制确认', '组长复核', '内控审核', '报送确认']
-  const flowTag = flow === 'editing' ? '待撰写' : flow === 'drafted' ? '已成稿' : flow === 'ledger' ? '待审核' : flow === 'reviewing' ? '审核中' : flow === 'approved' ? '待入库' : '已入库'
-  const reportAuditRows = reviewNodes2.map((node, index) => {
-    const completedIndex = flow === 'archived' || flow === 'approved'
-      ? reviewNodes2.length - 1
-      : flow === 'reviewing'
-        ? auditStep
-        : flow === 'ledger'
-          ? 0
-          : -1
-    const isCompleted = index < completedIndex || flow === 'approved' || flow === 'archived'
-    const isCurrent = flow === 'reviewing' && index === completedIndex
-    const status = isCompleted ? '已完成' : isCurrent ? '处理中' : index === 0 && flow === 'ledger' ? '待提交' : '未开始'
-    return {
-      node,
-      owner: ['编制人', '检查组长', '内控部门负责人', '报送管理员'][index],
-      progress: isCompleted ? 100 : isCurrent ? 50 : 0,
-      status,
-    }
-  })
+  // ═══════════ RECTIFICATION WORKBENCH (整改中) ═══════════
+  if (showWorkbench) {
+    return (
+      <PageFrame
+        title={<span style={{ display: 'flex', alignItems: 'center', gap: 10 }}><Button type="default-soft" icon={<ArrowLeft size={15} />} onClick={backToList}>返回列表</Button>整改事项</span>}
+        subtitle={`${selected.id} · ${selected.issue}`}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {/* Info Card */}
+          <Card title="整改事项信息" note={selected.id} action={<Tag tone={statusTone(selected.lane)}>{selected.lane}</Tag>}>
+            <div className="icm-grid cols-3" style={{ gap: 6 }}>
+              <DetailLine label="整改事项" value={selected.issue} />
+              <DetailLine label="责任部门" value={selected.owner} />
+              <DetailLine label="整改状态" value={<Tag tone={statusTone(selected.lane)}>{selected.lane}</Tag>} />
+              <DetailLine label="问题编号" value={srcIssue?.id ?? '待关联'} />
+              <DetailLine label="问题等级" value={srcIssue ? <Tag tone={statusTone(srcIssue.level)}>{srcIssue.level}</Tag> : '待关联'} />
+              <DetailLine label="整改期限" value={srcIssue?.deadline ?? '-'} />
+            </div>
+            <div className="icm-subsection-head"><div className="icm-card-title">整改进度</div></div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ flex: 1, height: 10, borderRadius: 999, background: '#e5e7eb', overflow: 'hidden' }}>
+                <span style={{ display: 'block', height: '100%', width: '60%', borderRadius: 999, background: '#155bd4' }} />
+              </span>
+              <span style={{ fontWeight: 800, fontSize: 13, color: '#155bd4' }}>60%</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, fontSize: 11, color: '#94a3b8' }}>
+              <span>整改中</span><span>已整改</span>
+            </div>
+          </Card>
+
+          {/* Source chain */}
+          <Card title="来源追溯" note="关联的问题、底稿和取证记录">
+            {srcIssue ? (
+              <div className="icm-grid cols-2" style={{ gap: 6 }}>
+                <DetailLine label="关联问题" value={`${srcIssue.id} · ${srcIssue.title}`} />
+                <DetailLine label="问题等级" value={<Tag tone={statusTone(srcIssue.level)}>{srcIssue.level}</Tag>} />
+                <DetailLine label="来源底稿" value={srcWorkpaper ? `${srcWorkpaper.id} · ${srcWorkpaper.title}` : '待关联'} />
+                <DetailLine label="取证附件" value={srcEvidence.map((e) => e.id).join(' / ') || '待关联'} />
+              </div>
+            ) : <div className="icm-empty-inline">未关联问题记录</div>}
+          </Card>
+
+          {/* Proof / Evidence card */}
+          <Card title="佐证材料" note={`已提交 ${selected.proof} 份 · 复核意见：${selected.verify}`}>
+            {selected.proof > 0 ? (
+              <DataTable
+                columns={['序号', '佐证说明', '提交时间', '状态']}
+                rows={Array.from({ length: selected.proof }, (_, i) => [
+                  `${i + 1}`,
+                  i === 0 ? '整改措施执行记录及审批文件' : i === 1 ? '相关凭证/合同/付款记录' : '补充说明材料',
+                  `2026-07-0${i + 3}`,
+                  <Tag tone={selected.verify === '成立' ? 'green' : 'amber'}>{i < selected.proof ? '已提交' : '待提交'}</Tag>,
+                ])}
+              />
+            ) : <div className="icm-empty-inline">暂无佐证材料，责任部门整改中。</div>}
+          </Card>
+
+        </div>
+      </PageFrame>
+    )
+  }
+
+  // ═══════════ REPORT FLOW (已整改) ═══════════
+  if (!showReport) {
+    return (
+      <PageFrame title="返回" subtitle=""><Button onClick={backToList}>返回列表</Button></PageFrame>
+    )
+  }
 
   return (
     <PageFrame
@@ -1833,7 +1869,7 @@ export function RectifyReportStage() {
                 <DetailLine label="整改进度" value={srcIssue ? `${srcIssue.progress}%` : '-'} />
               </div>
 
-              <SectionTitle>当前报告的问题</SectionTitle>
+              <SectionTitle>关联问题信息</SectionTitle>
               {srcIssue ? (
                 <div className="icm-grid cols-2" style={{ gap: 6 }}>
                   <DetailLine label="问题名称" value={srcIssue.title} />
@@ -1856,13 +1892,7 @@ export function RectifyReportStage() {
                   {selectedSrcItems.length ? (
                     <DataTable
                       columns={['素材类型', '编号', '标题', '来源/责任', '状态']}
-                      rows={selectedSrcItems.map((item) => [
-                        item.type,
-                        item.id,
-                        item.title,
-                        item.owner,
-                        <Tag tone={statusTone(item.status)}>{item.status}</Tag>,
-                      ])}
+                      rows={selectedSrcItems.map((item) => [item.type, item.id, item.title, item.owner, <Tag tone={statusTone(item.status)}>{item.status}</Tag>])}
                     />
                   ) : (
                     <div className="icm-empty-inline">尚未选择报告素材。确认素材后会在这里展示引用明细。</div>
@@ -1874,13 +1904,34 @@ export function RectifyReportStage() {
                 <div className="icm-report-paper">
                   <h2>{selectedTemplate}</h2>
                   <h3>一、整改概况</h3>
-                  <p>本报告围绕"{selected.issue}"形成，责任部门为{selected.owner}，当前整改状态为{selected.lane}。</p>
+                  <textarea
+                    className="icm-input"
+                    style={{ width: '100%', minHeight: 74, height: 'auto', padding: '8px 10px', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.7 }}
+                    value={draftSummary}
+                    onChange={(event) => { setDraftSummary(event.target.value); setDraftSaved(false) }}
+                  />
                   <h3>二、问题事实</h3>
-                  <p>{srcIssue ? `${srcIssue.title}，问题等级为${srcIssue.level}，整改期限为${srcIssue.deadline}。` : '当前整改事项未关联问题台账。'}</p>
+                  <textarea
+                    className="icm-input"
+                    style={{ width: '100%', minHeight: 74, height: 'auto', padding: '8px 10px', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.7 }}
+                    value={draftFact}
+                    onChange={(event) => { setDraftFact(event.target.value); setDraftSaved(false) }}
+                  />
                   <h3>三、引用素材</h3>
-                  <p>{selectedSrcItems.map((item) => `${item.type}-${item.id}`).join('、') || '待补充报告素材。'}</p>
+                  <textarea
+                    className="icm-input"
+                    style={{ width: '100%', minHeight: 74, height: 'auto', padding: '8px 10px', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.7 }}
+                    value={draftReferences}
+                    onChange={(event) => { setDraftReferences(event.target.value); setDraftSaved(false) }}
+                  />
                   <h3>四、审核口径</h3>
-                  <p>报告按整改事项逐项确认事实、佐证、责任部门、复核意见和报送状态。</p>
+                  <textarea
+                    className="icm-input"
+                    style={{ width: '100%', minHeight: 74, height: 'auto', padding: '8px 10px', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.7 }}
+                    value={draftReviewBasis}
+                    onChange={(event) => { setDraftReviewBasis(event.target.value); setDraftSaved(false) }}
+                  />
+                  {draftSaved ? <div style={{ color: '#15803d', fontSize: 12, fontWeight: 800, marginTop: 6 }}>初稿已暂存</div> : null}
                 </div>
               ) : null}
 
@@ -1897,7 +1948,10 @@ export function RectifyReportStage() {
                 {flow === 'editing' ? (
                   <Button type="primary" icon={<FileText size={15} />} disabled={!canDraft} onClick={generateDraft}>生成报告初稿</Button>
                 ) : flow === 'drafted' ? (
-                  <Button type="primary" icon={<ClipboardList size={15} />} onClick={generateLedger}>生成报送台账</Button>
+                  <>
+                    <Button type="default-soft" onClick={saveDraft}>暂存</Button>
+                    <Button type="primary" icon={<ClipboardList size={15} />} onClick={generateLedger}>生成报送台账</Button>
+                  </>
                 ) : flow === 'ledger' ? (
                   <Button type="success-soft" icon={<Send size={15} />} onClick={submitAudit}>提交审核</Button>
                 ) : flow === 'approved' ? (
@@ -1912,36 +1966,15 @@ export function RectifyReportStage() {
           </Card>
         </div>
 
-        {ledgerReady ? (
-          <Card title="审核报送" note="报送台账生成后进入审核流程">
-            <div className="icm-list">
-              {reportAuditRows.map((row) => (
-                <div className={`icm-audit-row ${row.progress === 100 ? 'done' : row.status === '处理中' ? 'running' : ''}`} key={row.node}>
-                  <div className="icm-audit-row-head">
-                    <div>
-                      <strong>{row.node}</strong>
-                      <span>{row.owner} · RPT-2026-{selected.id.replace('RC-', '')}</span>
-                    </div>
-                    <Tag tone={row.progress === 100 ? 'green' : row.status === '处理中' ? 'blue' : row.status === '待提交' ? 'amber' : 'gray'}>{row.status}</Tag>
-                  </div>
-                  <div className="icm-audit-progress"><b style={{ width: `${row.progress}%` }} /></div>
-                </div>
-              ))}
-            </div>
-          </Card>
-        ) : null}
       </div>
+
+      {/* ---- Modals (same as before) ---- */}
       {ledgerModal ? (
         <div className="icm-modal-mask" role="dialog" aria-modal="true">
           <div className="icm-modal icm-modal-small">
             <div className="icm-modal-head">
-              <div>
-                <div className="icm-modal-title">报送台账预览</div>
-                <div className="icm-modal-sub">RPT-2026-{selected.id.replace('RC-', '')} · 确认素材后生成报送台账</div>
-              </div>
-              <button className="icm-modal-close" type="button" onClick={() => setLedgerModal(false)} aria-label="关闭">
-                <X size={16} />
-              </button>
+              <div><div className="icm-modal-title">报送台账预览</div><div className="icm-modal-sub">RPT-2026-{selected.id.replace('RC-', '')} · 确认素材后生成报送台账</div></div>
+              <button className="icm-modal-close" type="button" onClick={() => setLedgerModal(false)} aria-label="关闭"><X size={16} /></button>
             </div>
             <div className="icm-modal-body" style={{ padding: 14 }}>
               <div className="icm-grid cols-2">
@@ -1951,55 +1984,23 @@ export function RectifyReportStage() {
                 <DetailLine label="已选素材" value={`${selectedSrcItems.length} 项`} />
               </div>
               {selectedSrcItems.length ? (
-                <DataTable
-                  columns={['素材类型', '编号', '标题', '来源/责任', '状态']}
-                  rows={selectedSrcItems.map((item) => [
-                    item.type,
-                    item.id,
-                    item.title,
-                    item.owner,
-                    <Tag tone={statusTone(item.status)}>{item.status}</Tag>,
-                  ])}
-                />
-              ) : (
-                <div className="icm-empty-inline">尚未选择报告素材。</div>
-              )}
-              <div className="icm-subsection-head">
-                <div className="icm-card-title">审核节点</div>
-              </div>
-              <div className="icm-list">
-                {reviewNodes2.map((node, i) => (
-                  <div className="icm-list-row" key={node}>
-                    <div>
-                      <div className="icm-list-title">{node}</div>
-                      <div className="icm-list-meta">{['编制人', '检查组长', '内控部门负责人', '报送管理员'][i]}</div>
-                    </div>
-                    <Tag tone="gray">待审核</Tag>
-                  </div>
-                ))}
-              </div>
+                <DataTable columns={['素材类型', '编号', '标题', '来源/责任', '状态']} rows={selectedSrcItems.map((item) => [item.type, item.id, item.title, item.owner, <Tag tone={statusTone(item.status)}>{item.status}</Tag>])} />
+              ) : <div className="icm-empty-inline">尚未选择报告素材。</div>}
             </div>
             <div className="icm-modal-foot">
-              <span style={{ color: '#748299', fontSize: 12 }}>确认后将生成报送台账并进入审核流程</span>
-              <div className="icm-actions">
-                <Button type="default-soft" onClick={() => setLedgerModal(false)}>取消</Button>
-                <Button type="primary" onClick={confirmLedger}>确认生成</Button>
-              </div>
+              <span style={{ color: '#748299', fontSize: 12 }}>确认后将生成报送台账。</span>
+              <div className="icm-actions"><Button type="default-soft" onClick={() => setLedgerModal(false)}>取消</Button><Button type="primary" onClick={confirmLedger}>确认生成</Button></div>
             </div>
           </div>
         </div>
       ) : null}
+
       {auditModal ? (
         <div className="icm-modal-mask" role="dialog" aria-modal="true">
           <div className="icm-modal icm-modal-small">
             <div className="icm-modal-head">
-              <div>
-                <div className="icm-modal-title">审核报送</div>
-                <div className="icm-modal-sub">RPT-2026-{selected.id.replace('RC-', '')} · {selectedTemplate} · 素材 {selectedSrcItems.length} 项</div>
-              </div>
-              <button className="icm-modal-close" type="button" onClick={() => !auditRunning ? setAuditModal(false) : undefined} aria-label="关闭">
-                <X size={16} />
-              </button>
+              <div><div className="icm-modal-title">审核报送</div><div className="icm-modal-sub">RPT-2026-{selected.id.replace('RC-', '')} · {selectedTemplate} · 素材 {selectedSrcItems.length} 项</div></div>
+              <button className="icm-modal-close" type="button" onClick={() => !auditRunning ? setAuditModal(false) : undefined} aria-label="关闭"><X size={16} /></button>
             </div>
             <div className="icm-modal-body" style={{ padding: 14 }}>
               <div className="icm-list">
@@ -2010,13 +2011,7 @@ export function RectifyReportStage() {
                   const nodeTone: Tone = auditDone ? 'green' : isCompleted ? 'green' : isCurrent ? 'blue' : 'gray'
                   return (
                     <div className={`icm-audit-row ${(auditDone || isCompleted) ? 'done' : isCurrent ? 'running' : ''}`} key={node}>
-                      <div className="icm-audit-row-head">
-                        <div>
-                          <strong>{node}</strong>
-                          <span>{['编制人', '检查组长', '内控部门负责人', '报送管理员'][i]} · RPT-2026-{selected.id.replace('RC-', '')}</span>
-                        </div>
-                        <Tag tone={nodeTone}>{nodeStatus}</Tag>
-                      </div>
+                      <div className="icm-audit-row-head"><div><strong>{node}</strong><span>{['编制人', '检查组长', '内控部门负责人', '报送管理员'][i]} · RPT-2026-{selected.id.replace('RC-', '')}</span></div><Tag tone={nodeTone}>{nodeStatus}</Tag></div>
                       <div className="icm-audit-progress"><b style={{ width: auditDone || isCompleted ? '100%' : isCurrent ? '50%' : '0%' }} /></div>
                     </div>
                   )
@@ -2026,11 +2021,7 @@ export function RectifyReportStage() {
             <div className="icm-modal-foot">
               <span style={{ color: '#748299', fontSize: 12 }}>{auditDone ? '全部审核已完成，可确认入库。' : auditRunning ? '审核进行中…' : '提交后将依次流转审核节点。'}</span>
               <div className="icm-actions">
-                {!auditRunning && !auditDone ? (
-                  <Button type="primary" onClick={startAuditFlow}>提交审核</Button>
-                ) : auditDone ? (
-                  <Button type="primary" icon={<CheckCircle2 size={15} />} onClick={confirmArchive}>确认入库</Button>
-                ) : null}
+                {!auditRunning && !auditDone ? <Button type="primary" onClick={startAuditFlow}>提交审核</Button> : auditDone ? <Button type="primary" icon={<CheckCircle2 size={15} />} onClick={confirmArchive}>确认入库</Button> : null}
               </div>
             </div>
           </div>
@@ -2041,44 +2032,28 @@ export function RectifyReportStage() {
         <div className="icm-modal-mask" role="dialog" aria-modal="true">
           <div className="icm-modal">
             <div className="icm-modal-head">
-              <div>
-                <div className="icm-modal-title">选择报告素材</div>
-                <div className="icm-modal-sub">已选 {selectedSrcItems.length} 项</div>
-              </div>
-              <button className="icm-modal-close" type="button" onClick={() => setModal(null)} aria-label="关闭">
-                <X size={16} />
-              </button>
-            </div>
-            <div className="icm-modal-tools">
-              <div className="icm-modal-search">
-                <span>检索</span>
-                <input value={searchKeyword} onChange={(event) => setSearchKeyword(event.target.value)} placeholder="问题、底稿、取证、整改、法规" />
-              </div>
+              <div><div className="icm-modal-title">选择报告素材</div><div className="icm-modal-sub">仅展示与当前整改事项关联的数据 · 已选 {selectedSrcItems.length} 项</div></div>
+              <button className="icm-modal-close" type="button" onClick={() => setModal(null)} aria-label="关闭"><X size={16} /></button>
             </div>
             <div className="icm-reference-list">
-              {groupedSources.map((group) => (
-                <div className="icm-list" key={group.type}>
-                  <button className="icm-list-row icm-material-group-row" type="button" onClick={() => setExpandedGroup(expandedGroup === group.type ? '' : group.type)}>
-                    <div>
-                      <div className="icm-list-title">{group.type}素材</div>
-                      <div className="icm-list-meta">可引用 {group.items.length} 项 · 已选 {group.items.filter((item) => selectedSourceIds.includes(item.id)).length} 项</div>
+              {groupedSources.map((group) => {
+                if (!group.items.length) return null
+                return (
+                  <div className="icm-list" key={group.type}>
+                    <div className="icm-list-row icm-material-group-row" style={{ cursor: 'default' }}>
+                      <div><div className="icm-list-title">{group.type}素材</div><div className="icm-list-meta">可引用 {group.items.length} 项 · 已选 {group.items.filter((item) => selectedSourceIds.includes(item.id)).length} 项</div></div>
                     </div>
-                    <span className={`icm-expand-btn ${expandedGroup === group.type ? 'active' : ''}`} aria-hidden="true">
-                      <ChevronDown size={15} />
-                    </span>
-                  </button>
-                  {expandedGroup === group.type ? group.items.map((item) => (
-                    <button className={`icm-reference-row ${selectedSourceIds.includes(item.id) ? 'active' : ''}`} key={item.id} type="button" onClick={() => toggleSource(item.id)}>
-                      <span className="icm-reference-check">{selectedSourceIds.includes(item.id) ? '✓' : ''}</span>
-                      <span>
-                        <strong>{item.title}</strong>
-                        <em>{item.type} · {item.id} · {item.owner}</em>
-                      </span>
-                      <Tag tone={statusTone(item.status)}>{item.status}</Tag>
-                    </button>
-                  )) : null}
-                </div>
-              ))}
+                    {group.items.map((item) => (
+                      <button className={`icm-reference-row ${selectedSourceIds.includes(item.id) ? 'active' : ''}`} key={item.id} type="button" onClick={() => toggleSource(item.id)}>
+                        <span className="icm-reference-check">{selectedSourceIds.includes(item.id) ? '✓' : ''}</span>
+                        <span><strong>{item.title}</strong><em>{item.type} · {item.id} · {item.owner}</em></span>
+                        <Tag tone={statusTone(item.status)}>{item.status}</Tag>
+                      </button>
+                    ))}
+                  </div>
+                )
+              })}
+              {groupedSources.every((g) => !g.items.length) ? <div className="icm-empty-inline">当前整改事项无关联素材，请先补充问题、底稿和证据关系。</div> : null}
             </div>
             <div className="icm-modal-foot">
               <span>已选择 {selectedSrcItems.length} 项素材</span>
@@ -2092,22 +2067,14 @@ export function RectifyReportStage() {
         <div className="icm-modal-mask" role="dialog" aria-modal="true">
           <div className="icm-modal icm-modal-small">
             <div className="icm-modal-head">
-              <div>
-                <div className="icm-modal-title">选择报告模板</div>
-                <div className="icm-modal-sub">{selectedTemplate || '未选择模板'}</div>
-              </div>
-              <button className="icm-modal-close" type="button" onClick={() => setModal(null)} aria-label="关闭">
-                <X size={16} />
-              </button>
+              <div><div className="icm-modal-title">选择报告模板</div><div className="icm-modal-sub">{selectedTemplate || '未选择模板'}</div></div>
+              <button className="icm-modal-close" type="button" onClick={() => setModal(null)} aria-label="关闭"><X size={16} /></button>
             </div>
             <div className="icm-reference-list">
               {reports.templates.map((template) => (
                 <button className={`icm-reference-row ${selectedTemplate === template ? 'active' : ''}`} key={template} type="button" onClick={() => { setSelectedTemplate(template); setFlow('editing'); setAuditStep(-1) }}>
                   <span className="icm-reference-check">{selectedTemplate === template ? '✓' : ''}</span>
-                  <span>
-                    <strong>{template}</strong>
-                    <em>目录、审核流、报送口径、归档分类</em>
-                  </span>
+                  <span><strong>{template}</strong><em>目录、审核流、报送口径、归档分类</em></span>
                   <Tag tone={selectedTemplate === template ? 'blue' : 'gray'}>{selectedTemplate === template ? '已选' : '模板'}</Tag>
                 </button>
               ))}

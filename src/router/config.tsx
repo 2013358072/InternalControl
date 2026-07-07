@@ -13,7 +13,6 @@ const ReviewWorkbench = lazy(() => import('../pages/icm/pages/ReviewWorkbench'))
 const WalkthroughWorkbench = lazy(() => import('../pages/icm/pages/WalkthroughWorkbench'))
 const Workpaper = lazy(() => import('../pages/icm/pages/Workpaper'))
 const EvidenceLedger = lazy(() => import('../pages/icm/pages/EvidenceLedger'))
-const IssueLedger = lazy(() => import('../pages/icm/pages/IssueLedger'))
 const RectifyBoard = lazy(() => import('../pages/icm/pages/RectifyBoard'))
 const ReportCenter = lazy(() => import('../pages/icm/pages/ReportCenter'))
 const VisualCockpit = lazy(() => import('../pages/icm/pages/VisualCockpit'))
@@ -33,7 +32,6 @@ const pageByPath: Record<string, JSX.Element> = {
   '/walkthrough-workbench': <WalkthroughWorkbench />,
   '/workpaper': <Workpaper />,
   '/evidence': <EvidenceLedger />,
-  '/issues': <IssueLedger />,
   '/rectify': <RectifyBoard />,
   '/report': <ReportCenter />,
   '/cockpit': <VisualCockpit />,

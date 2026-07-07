@@ -312,6 +312,10 @@ export type Issue = {
   workpaperId: string
   evidenceIds: string[]
   rectificationId: string
+  fact?: string
+  basis?: string
+  impact?: string
+  suggestion?: string
 }
 
 export type Rectification = {

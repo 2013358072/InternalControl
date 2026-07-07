@@ -11,7 +11,7 @@ const S = {
   red: issues.filter((i) => i.level === '重大').length,
   overdue: issues.filter((i) => i.status !== '已销号' && i.deadline < '2026-07-06').length,
   posWp: workpapers.filter((w) => w.result === '阳性').length,
-  closed: rectifications.filter((r) => r.lane === '已销号').length,
+  closed: rectifications.filter((r) => r.lane === '已整改').length,
   get rate() { return Math.round((this.closed / Math.max(rectifications.length, 1)) * 100) },
   get disp() { return plans.filter((p) => p.status === '已派发').length },
 }
@@ -23,7 +23,7 @@ const LIVE_ALERTS = [
   { domain: '计划', level: '正常', text: 'PL-2026-001 采购专项检查方案审批通过，任务 TK-001 已派发。', owner: '检查计划', action: '持续跟踪' },
   { domain: '底稿', level: '正常', text: 'WP-0460 供应商准入资料抽样核查通过，未形成问题。', owner: '检查底稿', action: '归档留痕' },
   { domain: '取证', level: '正常', text: 'EV-0312 采购合同台账取证单已归档并完成链上校验。', owner: '取证台账', action: '证据可用' },
-  { domain: '问题', level: '正常', text: 'ISS-090 验收记录补录事项已完成整改并销号。', owner: '问题台账', action: '关闭观察' },
+  { domain: '问题', level: '正常', text: 'ISS-090 验收记录补录事项已完成整改。', owner: '底稿与问题', action: '关闭观察' },
   { domain: '整改', level: '正常', text: 'RC-090 整改佐证复核成立，已回写关闭状态。', owner: '整改闭环', action: '闭环完成' },
   { domain: '报告', level: '正常', text: 'RPT-001 采购围标风险专项检查报告已同步引用底稿。', owner: '报告中心', action: '草稿完善' },
 ]
@@ -31,7 +31,7 @@ const LIVE_ALERTS = [
 const KPI7 = [
   { v: plans.length.toString(), l: '检查计划', n: S.disp + '项已派发', c: '#155bd4' },
   { v: cockpit.metrics[1].value, l: '问题线索', n: '红色' + S.red + '条', c: '#dc2626' },
-  { v: S.rate + '%', l: '整改闭环', n: S.closed + '已销号', c: '#16a34a' },
+  { v: S.rate + '%', l: '整改闭环', n: S.closed + '已整改', c: '#16a34a' },
   { v: '86%', l: '证据完整', n: '较上月+9%', c: '#16a34a' },
   { v: '4/8域', l: '审查覆盖', n: '8域全覆盖', c: '#155bd4' },
   { v: LIVE_ALERTS.length + '条', l: '实时预警', n: '重大' + ALERT_MAJOR + '条', c: '#dc2626' },
@@ -62,8 +62,8 @@ const MODS = [
   { v: plans.length.toString(), l: '检查计划', n: S.disp + '项已派发', p: '/plan-workbench', c: '#155bd4' },
   { v: cockpit.metrics[1].value, l: '智能审查', n: '风险线索', p: '/review-workbench', c: '#dc2626' },
   { v: workpapers.length.toString(), l: '检查底稿', n: S.posWp + '份阳性', p: '/workpaper', c: '#0891b2' },
-  { v: issues.length.toString(), l: '问题台账', n: S.red + '重大/' + S.overdue + '超期', p: '/issues', c: '#d97706' },
-  { v: S.rate + '%', l: '整改闭环', n: S.closed + '/' + rectifications.length + '已销号', p: '/rectify', c: '#16a34a' },
+  { v: issues.length.toString(), l: '问题线索', n: S.red + '重大/' + S.overdue + '超期', p: '/workpaper', c: '#d97706' },
+  { v: S.rate + '%', l: '整改闭环', n: S.closed + '/' + rectifications.length + '已整改', p: '/rectify', c: '#16a34a' },
   { v: '5', l: '报告中心', n: '2份草稿', p: '/report', c: '#7c3aed' },
 ]
 type MetricTileProps = {
@@ -254,8 +254,6 @@ function TrendChart({ months: rangeMonths }: { months: number }) {
   }
   return <ReactECharts option={opt} style={{ width: '100%', height: '100%', minHeight: 0 }} />
 }
-
-
 
 
 

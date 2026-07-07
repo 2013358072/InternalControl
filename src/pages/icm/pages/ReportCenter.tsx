@@ -9,7 +9,7 @@ type ReferenceType = '全部' | '底稿' | '证据' | '问题' | '整改'
 const references = [
   { type: '底稿', id: 'WP-CG-001', title: '供应商报价相似度异常底稿', owner: '张岚', source: '检查底稿管理', status: '已复核' },
   { type: '证据', id: 'EV-2026-0618-01', title: '投标文件报价明细采集', owner: '采购管理部', source: '取证单台账', status: '已固化' },
-  { type: '问题', id: 'IS-2026-001', title: '三家投标供应商报价差异极小且格式相似', owner: '采购管理部', source: '问题台账', status: '待整改' },
+  { type: '问题', id: 'IS-2026-001', title: '三家投标供应商报价差异极小且格式相似', owner: '采购管理部', source: '问题记录', status: '待整改' },
   { type: '整改', id: 'RC-001', title: '补充供应商报价异常说明并完善评审记录', owner: '采购管理部', source: '整改闭环管理', status: '推进中' },
   { type: '证据', id: 'EV-2026-0618-02', title: '投标文件元数据与联系人比对记录', owner: '招采中心', source: '取证单台账', status: '已固化' },
   { type: '底稿', id: 'WP-PAY-003', title: '中标后预付款比例复核底稿', owner: '王锐', source: '检查底稿管理', status: '已复核' },
@@ -20,7 +20,8 @@ const reportTasks = [
   { id: 'RP-2026-012', name: '二季度内控检查综合报告', type: '综合报告' as const, date: '2026-06-20', status: '已归档', unit: '集团内控部', author: '李娜', template: 'summary' as Template },
   { id: 'RP-2026-009', name: '问题整改督办通知', type: '督办通知' as const, date: '2026-06-15', status: '已发布', unit: '采购管理部', author: '王锐', template: 'notice' as Template },
   { id: 'RP-2026-025', name: '合同审批合规专项报告', type: '专项报告' as const, date: '2026-07-03', status: '草稿', unit: '合同管理部', author: '刘峰', template: 'special' as Template },
-  { id: 'RP-2026-031', name: '2026年上半年内控检查综合报告', type: '综合报告' as const, date: '2026-07-05', status: '审核中', unit: '集团内控部', author: '陈明', template: 'summary' as Template },
+  { id: 'RP-2026-031', name: '2026年上半年内控检查综合报告', type: '综合报告' as const, date: '2026-07-05', status: '审核通过', unit: '集团内控部', author: '陈明', template: 'summary' as Template },
+  { id: 'RP-2026-036', name: '供应商准入执行情况专项报告', type: '专项报告' as const, date: '2026-07-06', status: '审核不通过', unit: '采购管理部', author: '赵敏', template: 'special' as Template },
 ]
 
 const templateMap = {
@@ -54,7 +55,7 @@ function buildReportHtml(title: string, selectedReferences: typeof references) {
   <h1>${title}</h1>
   <div class="meta">生成时间：2026-07-01 · 数据范围：采购管理、合同管理、资金支付、整改闭环</div>
   <h2>一、检查概况</h2>
-  <p>本报告基于检查底稿、取证记录、问题台账和整改闭环数据自动生成，重点关注采购围标风险、供应商关联关系和评审记录完整性。</p>
+  <p>本报告基于检查底稿、取证记录、问题记录和整改闭环数据自动生成，重点关注采购围标风险、供应商关联关系和评审记录完整性。</p>
   <h2>二、主要发现</h2>
   <p>系统识别出报价相似度异常、供应商联系人重合、评审依据缺失等风险线索，其中重大问题 1 项、重要问题 2 项、一般问题 1 项。</p>
   <h2>三、数据引用</h2>
@@ -119,7 +120,7 @@ export default function ReportCenter() {
             t.unit,
             t.author,
             t.date,
-            <Tag tone={t.status === '已归档' || t.status === '已发布' ? 'green' : t.status === '审核中' ? 'amber' : 'blue'}>{t.status}</Tag>,
+            <Tag tone={t.status === '已归档' || t.status === '已发布' || t.status === '审核通过' ? 'green' : t.status === '审核不通过' ? 'red' : t.status === '审核中' ? 'amber' : 'blue'}>{t.status}</Tag>,
             <button type="button" className="icm-link" onClick={(e) => { e.stopPropagation(); enterDetail(t.id) }}>查看报告</button>,
           ])}
           onRowClick={(i) => enterDetail(filteredTasks[i].id)}
@@ -131,29 +132,61 @@ export default function ReportCenter() {
 
 function ReportDetail({ task, onBack }: { task: typeof reportTasks[number]; onBack: () => void }) {
   const [localStatus, setLocalStatus] = useState(task.status)
+  const [reviewApproved, setReviewApproved] = useState(task.status === '审核通过')
   const isDraft = localStatus === '草稿'
   const isReviewing = localStatus === '审核中'
+  const isApproved = localStatus === '审核通过' || reviewApproved
+  const isRejected = localStatus === '审核不通过'
   const [referenceOpen, setReferenceOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [type, setType] = useState<ReferenceType>('全部')
   const [selectedIds, setSelectedIds] = useState(() => new Set(references.slice(0, 4).map((item) => item.id)))
   const [auditExpanded, setAuditExpanded] = useState(true)
   const [toast, setToast] = useState('')
+  const [ledgerGenerated, setLedgerGenerated] = useState(task.status !== '草稿')
+  const [ledgerGenerating, setLedgerGenerating] = useState(false)
 
   const handleSubmit = () => {
+    if (!ledgerGenerated) return
     setLocalStatus('审核中')
+    setReviewApproved(false)
     setAuditExpanded(true)
     setToast('已提交审核，主审复核中')
     setTimeout(() => setToast(''), 2200)
   }
+  const handleGenerateLedger = () => {
+    if (ledgerGenerated || ledgerGenerating) return
+    setLedgerGenerating(true)
+    setToast('正在生成报送台账…')
+    window.setTimeout(() => {
+      setLedgerGenerating(false)
+      setLedgerGenerated(true)
+      setToast('报送台账已生成')
+      window.setTimeout(() => setToast(''), 1800)
+    }, 900)
+  }
+  const handleApprove = () => {
+    setLocalStatus('审核通过')
+    setReviewApproved(true)
+    setToast('审核已通过')
+    setTimeout(() => setToast(''), 2200)
+  }
+  const handleReject = () => {
+    setLocalStatus('草稿')
+    setReviewApproved(false)
+    setToast('已退回至草稿')
+    setTimeout(() => setToast(''), 2200)
+  }
   const handlePublish = () => {
     setLocalStatus('已发布')
+    setReviewApproved(false)
     setAuditExpanded(true)
     setToast('已发布')
     setTimeout(() => setToast(''), 2200)
   }
   const handleArchive = () => {
     setLocalStatus('已归档')
+    setReviewApproved(false)
     setAuditExpanded(true)
     setToast('已归档')
     setTimeout(() => setToast(''), 2200)
@@ -181,10 +214,10 @@ function ReportDetail({ task, onBack }: { task: typeof reportTasks[number]; onBa
     })
   }
 
-  const statusTag = localStatus === '已归档' || localStatus === '已发布' ? 'green' : localStatus === '审核中' ? 'amber' : 'blue'
+  const statusTag = localStatus === '已归档' || localStatus === '已发布' || isApproved ? 'green' : isRejected ? 'red' : localStatus === '审核中' ? 'amber' : 'blue'
 
   const showDraftBtns = isDraft
-  const showReviewBtns = isReviewing
+  const showReviewBtns = (isReviewing && !isApproved) || isRejected
 
   return (
     <>
@@ -203,12 +236,15 @@ function ReportDetail({ task, onBack }: { task: typeof reportTasks[number]; onBa
             <>
               <Button type="primary" icon={<Download size={16} />} onClick={() => downloadWord(`${title}.doc`, html)}>导出 Word</Button>
               <Button type="primary-soft" icon={<Printer size={16} />} onClick={() => printHtml(html)}>导出 PDF</Button>
-              <Button type="success-soft" icon={<Send size={16} />} onClick={handleSubmit}>提交审核</Button>
+              {ledgerGenerated ? <Button type="success-soft" icon={<Send size={16} />} onClick={handleSubmit}>提交审核</Button> : null}
             </>
           )}
-          {showReviewBtns && (
-            <Button type="success-soft" icon={<Send size={16} />} onClick={handlePublish}>确认发布</Button>
-          )}
+          {showReviewBtns ? (
+            <>
+              <Tag tone="red">审核不通过</Tag>
+              <Button type="default-soft" icon={<X size={16} />} onClick={handleReject}>退回修改</Button>
+            </>
+          ) : null}
         </Toolbar>
 
         <Card
@@ -220,7 +256,7 @@ function ReportDetail({ task, onBack }: { task: typeof reportTasks[number]; onBa
             <h2>{title}</h2>
             <p>生成时间：{task.date} · 编制部门：{task.unit} · 版本：V1.0 · 引用数据：{selectedReferences.length} 条</p>
             <h3>一、检查概况</h3>
-            <p>本次检查围绕采购管理、合同管理、资金支付及整改闭环开展，形成底稿、取证记录、问题台账和整改任务。</p>
+            <p>本次检查围绕采购管理、合同管理、资金支付及整改闭环开展，形成底稿、取证记录、问题记录和整改任务。</p>
             <h3>二、主要发现</h3>
             <p>采购围标风险集中表现为报价相似度异常、供应商联系人重合、评审依据记录不足，建议纳入专项督办。</p>
             <h3>三、数据引用</h3>
@@ -232,31 +268,44 @@ function ReportDetail({ task, onBack }: { task: typeof reportTasks[number]; onBa
           <div className="icm-subsection-head" onClick={() => setAuditExpanded((v) => !v)} style={{ cursor: 'pointer' }}>
             <div className="icm-card-title">审核发布</div>
             <span style={{ color: '#748299', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
-              {auditExpanded ? '收起' : '展开'} · {isDraft ? '草稿' : isReviewing ? '复核中' : localStatus}
+              {auditExpanded ? '收起' : '展开'} · {isDraft ? '草稿' : isApproved ? '审核通过' : isRejected ? '审核不通过' : isReviewing ? '复核中' : localStatus}
             </span>
           </div>
           {auditExpanded && (
             <div className="icm-list">
-              {/* 起草 */}
+              {/* 报送台账 */}
               <div className="icm-list-row">
                 <div>
-                  <div className="icm-list-title">起草状态</div>
-                  <div className="icm-list-meta">V1.0 草稿已生成</div>
+                  <div className="icm-list-title">生成报送台账</div>
+                  <div className="icm-list-meta">{ledgerGenerated ? '报送台账已生成，可提交审核' : ledgerGenerating ? '正在生成报送台账' : '生成后才能提交审核'}</div>
                 </div>
-                <Tag tone="blue">已完成起草</Tag>
+                {ledgerGenerated ? (
+                  <Tag tone="green">已生成</Tag>
+                ) : (
+                  <Button type="primary-soft" loading={ledgerGenerating} onClick={handleGenerateLedger}>生成报送台账</Button>
+                )}
               </div>
               {/* 主审复核 */}
               <div className={`icm-list-row ${isReviewing ? 'active' : ''}`}>
                 <div>
                   <div className="icm-list-title">主审复核</div>
-                  <div className="icm-list-meta">{localStatus === '草稿' ? '待提交审核' : isReviewing ? '复核中' : '已通过'}</div>
+                  <div className="icm-list-meta">{!ledgerGenerated ? '待生成报送台账' : localStatus === '草稿' ? '待提交审核' : isApproved ? '已通过' : isRejected ? '审核未通过，待退回修改' : isReviewing ? '复核中' : '已通过'}</div>
                 </div>
-                {isDraft ? (
+                {isDraft && ledgerGenerated ? (
                   <Button type="primary-soft" onClick={handleSubmit}>提交审核</Button>
+                ) : isDraft ? (
+                  <Tag tone="gray">待台账</Tag>
+                ) : isApproved ? (
+                  <Tag tone="green">审核通过</Tag>
+                ) : isRejected ? (
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    <Tag tone="red">审核不通过</Tag>
+                    <Button type="default-soft" onClick={handleReject}>退回修改</Button>
+                  </div>
                 ) : isReviewing ? (
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <Button type="success-soft" onClick={handlePublish}>审核通过</Button>
-                    <Button type="default-soft" onClick={() => { setLocalStatus('草稿'); setToast('已退回至草稿'); setTimeout(() => setToast(''), 2200) }}>退回修改</Button>
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    <Tag tone="red">审核不通过</Tag>
+                    <Button type="default-soft" onClick={handleReject}>退回修改</Button>
                   </div>
                 ) : (
                   <Tag tone="green">已通过</Tag>
@@ -270,15 +319,19 @@ function ReportDetail({ task, onBack }: { task: typeof reportTasks[number]; onBa
                 </div>
                 {localStatus === '已发布' ? (
                   <Tag tone="green">已发布</Tag>
-                ) : localStatus === '审核中' ? (
+                ) : localStatus === '已归档' ? (
+                  <Tag tone="green">已归档</Tag>
+                ) : isDraft ? (
+                  <Tag tone="gray">待审核</Tag>
+                ) : isRejected ? (
+                  <Tag tone="amber">待审核通过</Tag>
+                ) : isReviewing && !isApproved ? (
+                  <Tag tone="amber">待审核通过</Tag>
+                ) : (
                   <div style={{ display: 'flex', gap: 6 }}>
                     <Button type="primary-soft" onClick={handlePublish}>确认发布</Button>
                     <Button type="default-soft" onClick={handleArchive}>直接归档</Button>
                   </div>
-                ) : localStatus === '已归档' ? (
-                  <Tag tone="green">已归档</Tag>
-                ) : (
-                  <Tag tone="gray">未发布</Tag>
                 )}
               </div>
             </div>

@@ -108,7 +108,7 @@ const cases: WorkpaperCase[] = [
     body: {
       procedure: '抽取 2026 年 1-5 月工程物资采购合同台账，按项目编号、供应商、合同签订日期、合同金额进行聚合比对，并调阅采购包划分审批记录。',
       facts: '同一工程项目在 12 日内连续签订 HT-1182、HT-1183、HT-1184 三份合同，供应商均为宁北机电设备有限公司，合计金额 1180 万元，采购包划分说明缺失。',
-      conclusion: '该事项存在通过拆分合同规避公开招标的重大控制缺陷，已由阳性底稿自动生成问题台账并进入整改闭环。',
+      conclusion: '该事项存在通过拆分合同规避公开招标的重大控制缺陷，已由阳性底稿确认问题并进入整改闭环。',
       next: '系统已匹配责任部门为采购管理部，整改责任人为采购部负责人和招采中心主任，整改状态为推进中。',
     },
   },
@@ -336,7 +336,7 @@ export default function Workpaper() {
   const [modalTab, setModalTab] = useState<SourceTab | null>(null)
   const [evidenceParsed, setEvidenceParsed] = useState(false)
   const [reviewStep, setReviewStep] = useState(0) // 0=未复核, 1=复核中, 2=一级通过, 3=二级通过, 4=交叉通过
-  const [evidenceFolded, setEvidenceFolded] = useState(false)
+  const [evidenceFolded, setEvidenceFolded] = useState(true)
   const [reviewFolded, setReviewFolded] = useState(true)
   const [reporting, setReporting] = useState(false)
   const [toastMsg, setToastMsg] = useState<string | null>(null)
@@ -349,7 +349,7 @@ export default function Workpaper() {
     setModalTab(null)
     setEvidenceParsed(false)
     setReviewStep(0)
-    setEvidenceFolded(false)
+    setEvidenceFolded(true)
     setReviewFolded(true)
     setReporting(false)
   }
@@ -500,59 +500,72 @@ export default function Workpaper() {
                 <Button type="primary" icon={<FileSearch size={15} />} onClick={parseEvidence}>解析取证单</Button>
               </div>
             ) : allReviewPassed ? (
-              <Card
-                title="阳性底稿 · 已关联问题"
-                note="复核全部通过，问题台账已生成"
-                action={
-                  <button className="icm-sidebar-toggle" type="button" onClick={() => setReviewFolded((v) => !v)} aria-label={reviewFolded ? '展开' : '折叠'}>
-                    {reviewFolded ? <ChevronLeft size={15} style={{ transform: 'rotate(90deg)' }} /> : <ChevronLeft size={15} style={{ transform: 'rotate(-90deg)' }} />}
-                  </button>
-                }
-              >
-                <div className="icm-grid cols-2">
-                  <DetailLine label="审查线索" value={selected.reviewFinding.id !== '-' ? `${selected.reviewFinding.id} · ${selected.reviewFinding.title}` : '无'} />
-                  <DetailLine label="置信度" value={selected.reviewFinding.confidence} />
-                  <DetailLine label="数据快照" value={`${selected.dataSnapshot.id}`} />
-                  <DetailLine label="数据包" value={selected.dataSnapshot.package} />
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
-                  <Button type="primary" icon={reporting ? <Loader2 className="icm-spin" size={15} /> : <GitBranch size={15} />} disabled={reporting} onClick={submitRectify}>报送整改</Button>
-                </div>
-                {!reviewFolded ? (
-                  <div className="icm-grid" style={{ marginTop: 12, gap: 12 }}>
-                    <Card title="取证单解析结果">
-                      <DataTable
-                        columns={['取证单', '解析要素', '被检查单位确认']}
-                        rows={selected.evidenceSheet.parsed.map((item, index) => [
-                          index === 0 ? selected.evidenceSheet.id : '',
-                          item,
-                          index === 0 ? selected.evidenceSheet.confirm : '',
-                        ])}
-                      />
-                    </Card>
-                    <Card title="复核链路" note="全部通过">
-                      <div className="icm-review-chain">
-                        {reviewNodes.map((node, index) => (
-                          <div className="icm-review-node done" key={node.node}>
-                            <div className="icm-review-node-dot"><CheckCircle2 size={18} /></div>
-                            <div className="icm-review-node-body">
-                              <div className="icm-review-node-head">
-                                <strong>{node.node}</strong>
-                                <Tag tone="green">通过</Tag>
-                              </div>
-                              <div className="icm-review-node-meta">
-                                <span>负责人：{node.owner}</span>
-                                {node.opinion !== '-' ? <span>意见：{node.opinion}</span> : null}
-                              </div>
+              <>
+                <Card
+                  title="取证单解析结果"
+                  note="复核全部通过"
+                  action={
+                    <button className="icm-sidebar-toggle" type="button" onClick={() => setEvidenceFolded((v) => !v)} aria-label={evidenceFolded ? '展开' : '折叠'}>
+                      {evidenceFolded ? <ChevronLeft size={15} style={{ transform: 'rotate(90deg)' }} /> : <ChevronLeft size={15} style={{ transform: 'rotate(-90deg)' }} />}
+                    </button>
+                  }
+                >
+                  {!evidenceFolded ? (
+                    <DataTable
+                      columns={['取证单', '解析要素', '被检查单位确认']}
+                      rows={selected.evidenceSheet.parsed.map((item, index) => [
+                        index === 0 ? selected.evidenceSheet.id : '',
+                        item,
+                        index === 0 ? selected.evidenceSheet.confirm : '',
+                      ])}
+                    />
+                  ) : null}
+                </Card>
+                <Card
+                  title="复核链路"
+                  note="全部通过"
+                  action={
+                    <button className="icm-sidebar-toggle" type="button" onClick={() => setReviewFolded((v) => !v)} aria-label={reviewFolded ? '展开' : '折叠'}>
+                      {reviewFolded ? <ChevronLeft size={15} style={{ transform: 'rotate(90deg)' }} /> : <ChevronLeft size={15} style={{ transform: 'rotate(-90deg)' }} />}
+                    </button>
+                  }
+                >
+                  {!reviewFolded ? (
+                    <div className="icm-review-chain">
+                      {reviewNodes.map((node, index) => (
+                        <div className="icm-review-node done" key={node.node}>
+                          <div className="icm-review-node-dot"><CheckCircle2 size={18} /></div>
+                          <div className="icm-review-node-body">
+                            <div className="icm-review-node-head">
+                              <strong>{node.node}</strong>
+                              <Tag tone="green">通过</Tag>
                             </div>
-                            {index < reviewNodes.length - 1 ? <div className="icm-review-node-line" /> : null}
+                            <div className="icm-review-node-meta">
+                              <span>负责人：{node.owner}</span>
+                              {node.opinion !== '-' ? <span>意见：{node.opinion}</span> : null}
+                            </div>
                           </div>
-                        ))}
-                      </div>
-                    </Card>
+                          {index < reviewNodes.length - 1 ? <div className="icm-review-node-line" /> : null}
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </Card>
+                <Card
+                  title="阳性底稿 · 已关联问题"
+                  note="问题已确认"
+                >
+                  <div className="icm-grid cols-2" style={{ gap: 10 }}>
+                    <DetailLine label="审查线索" value={selected.reviewFinding.id !== '-' ? `${selected.reviewFinding.id} · ${selected.reviewFinding.title}` : '无'} />
+                    <DetailLine label="置信度" value={selected.reviewFinding.confidence} />
+                    <DetailLine label="数据快照" value={`${selected.dataSnapshot.id}`} />
+                    <DetailLine label="数据包" value={selected.dataSnapshot.package} />
                   </div>
-                ) : null}
-              </Card>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 10 }}>
+                    <Button type="primary" icon={reporting ? <Loader2 className="icm-spin" size={15} /> : <GitBranch size={15} />} disabled={reporting} onClick={submitRectify}>报送整改</Button>
+                  </div>
+                </Card>
+              </>
             ) : (
               <div className="icm-grid" style={{ marginTop: 14, gap: 12 }}>
                 <Card

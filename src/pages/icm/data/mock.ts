@@ -342,17 +342,17 @@ export const workpapers: Workpaper[] = [
 ]
 
 export const issues: Issue[] = [
-  { id: 'ISS-077', title: '拆分合同规避公开招标', level: '重大', owner: '采购部', deadline: '2026-07-10', progress: 55, status: '整改中', workpaperId: 'WP-0451', evidenceIds: ['EV-0312', 'EV-0316'], rectificationId: 'RC-077' },
-  { id: 'ISS-079', title: '陪标供应商管理失控', level: '重要', owner: '供应链管理部', deadline: '2026-07-18', progress: 30, status: '待整改', workpaperId: 'WP-0456', evidenceIds: ['EV-0321'], rectificationId: 'RC-079' },
-  { id: 'ISS-081', title: '预付款比例控制不严', level: '重大', owner: '财务部', deadline: '2026-07-12', progress: 80, status: '待复核', workpaperId: 'WP-0455', evidenceIds: ['EV-0318'], rectificationId: 'RC-081' },
-  { id: 'ISS-090', title: '验收记录补录不及时', level: '一般', owner: '仓储管理部', deadline: '2026-06-28', progress: 100, status: '已销号', workpaperId: 'WP-0462', evidenceIds: [], rectificationId: 'RC-090' },
+  { id: 'ISS-077', title: '拆分合同规避公开招标', level: '重大', owner: '采购部', deadline: '2026-07-10', progress: 55, status: '整改中', workpaperId: 'WP-0451', evidenceIds: ['EV-0312', 'EV-0316'], rectificationId: 'RC-077', fact: '同一工程项目12日内连续签订HT-1182、HT-1183、HT-1184三份合同，供应商均为宁北机电设备有限公司，合计金额1180万元，单份合同金额均低于公开招标阈值。', basis: '集团采购管理办法第18条、招投标合规指引第12条——单项合同估算价达到公开招标标准的，不得通过拆分合同规避招标。', impact: '规避公开招标可能导致采购价格不公允、供应商选择不充分，存在围标陪标和利益输送风险。', suggestion: '建议恢复公开招标流程，对已签订合同进行价格合理性复核，完善采购包划分审批制度。' },
+  { id: 'ISS-079', title: '陪标供应商管理失控', level: '重要', owner: '供应链管理部', deadline: '2026-07-18', progress: 30, status: '待整改', workpaperId: 'WP-0456', evidenceIds: ['EV-0321'], rectificationId: 'RC-079', fact: '两家投标供应商联系人和注册地址存在重合，投标文件格式和报价结构高度相似，疑似陪标围标。', basis: '供应商管理细则第9条、招投标合规指引第12条——供应商之间不得存在关联关系或串通投标行为。', impact: '陪标行为破坏公平竞争，中标价格可能虚高10%-20%，且存在后续履约质量风险。', suggestion: '建议将涉事供应商列入观察名单，对关联关系进行尽职调查，补充工商及联系人核验。' },
+  { id: 'ISS-081', title: '预付款比例控制不严', level: '重大', owner: '财务部', deadline: '2026-07-12', progress: 80, status: '待复核', workpaperId: 'WP-0455', evidenceIds: ['EV-0318'], rectificationId: 'RC-081', fact: '合同约定预付比例30%，实际支付比例50%，付款审批单缺少验收节点确认记录，验收日期晚于付款日期9天。', basis: '资金支付管理办法第15条——付款比例不得超过合同约定，且须以验收资料齐全为前置条件。', impact: '超额预付款占用企业资金，若供应商履约不力将面临追款困难，存在资金损失风险。', suggestion: '建议立即暂停后续付款，要求业务部门补充验收说明，完善付款审批与验收联动机制。' },
+  { id: 'ISS-090', title: '验收记录补录不及时', level: '一般', owner: '仓储管理部', deadline: '2026-06-28', progress: 100, status: '已销号', workpaperId: 'WP-0462', evidenceIds: [], rectificationId: 'RC-090', fact: '2026年5月三批物资入库验收记录滞后补录，平均延迟15天，期间物料已投入使用。', basis: '仓储管理办法第22条——物资入库须在收货后3个工作日内完成验收记录。', impact: '验收滞后可能导致质量争议无法及时追溯，但不涉及资金损失，影响程度较低。', suggestion: '建议完善仓储管理流程，设置验收超时自动提醒，对补录行为进行考核。' },
 ]
 
 export const rectifications: Rectification[] = [
   { id: 'RC-077', issue: '拆分合同规避公开招标', lane: '整改中', owner: '采购部', proof: 1, verify: '存疑', writeBack: '整改进度已回写任务 TK-001，暂不允许关闭。' },
-  { id: 'RC-079', issue: '陪标供应商管理失控', lane: '待整改', owner: '供应链管理部', proof: 0, verify: '待核验', writeBack: '待提交佐证后回写。' },
-  { id: 'RC-081', issue: '预付款比例控制不严', lane: '待复核', owner: '财务部', proof: 3, verify: '成立', writeBack: '复核通过后回写任务 TK-003。' },
-  { id: 'RC-090', issue: '验收记录补录', lane: '已销号', owner: '仓储管理部', proof: 2, verify: '成立', writeBack: '已销号并回写关闭。' },
+  { id: 'RC-079', issue: '陪标供应商管理失控', lane: '整改中', owner: '供应链管理部', proof: 0, verify: '待核验', writeBack: '责任部门整改中，待补充佐证材料。' },
+  { id: 'RC-081', issue: '预付款比例控制不严', lane: '已整改', owner: '财务部', proof: 3, verify: '成立', writeBack: '整改已完成，可编制整改报告。' },
+  { id: 'RC-090', issue: '验收记录补录', lane: '已整改', owner: '仓储管理部', proof: 2, verify: '成立', writeBack: '整改已完成并回写关闭。' },
 ]
 
 export const reports: Reports = {
