@@ -1,5 +1,5 @@
 ﻿import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowLeft, CheckCircle2, ChevronDown, ChevronLeft, ClipboardList, Download, FilePlus2, FileText, Play, Search, Send, UploadCloud, X } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, ChevronDown, ChevronLeft, ClipboardList, Download, FilePlus2, FileText, Play, Search, Send, X } from 'lucide-react'
 import * as XLSX from 'xlsx'
 
 import {
@@ -56,7 +56,7 @@ const planPool = [
     riskTheme: '采购围标风险',
     owner: '张衡',
     period: '2026-06-20 至 2026-07-31',
-    budget: '32 人天',
+    budget: '32 人/天',
     basis: '年度内控检查安排（内控办〔2026〕3号）、集团采购管理办法第18条、招投标合规指引第12条',
     objective: '核验采购围标风险识别、报价异常检测、供应商关联关系排查的完整性和整改闭环有效性。',
     avoidanceCheck: '已通过',
@@ -242,6 +242,7 @@ export function PlanDispatchStage() {
   const [assignedIds, setAssignedIds] = useState<string[]>([])
   const [dispatchedIds, setDispatchedIds] = useState<string[]>(['PL-2026-021'])
   const [taskBookIds, setTaskBookIds] = useState<string[]>([])
+  const [assignedPlans, setAssignedPlans] = useState<string[]>(['PL-2026-021'])
   const [splitting, setSplitting] = useState(false)
   const [splitIndex, setSplitIndex] = useState(-1)
   const [searchKeyword, setSearchKeyword] = useState('')
@@ -412,6 +413,7 @@ export function PlanDispatchStage() {
   const isDraft = currentStatus === '草稿'
   const showApprovalChain = !isDraft && (selected.approvals?.length ?? 0) > 0
   const showActionCard = !isDraft && !isDispatched
+  const isAssignedPlan = assignedPlans.includes(selected.id)
 
   const planDisplayStatus = (plan: (typeof planPool)[number]) => (
     dispatchedIds.includes(plan.id)
@@ -482,11 +484,15 @@ export function PlanDispatchStage() {
 
   const dispatchTasks = () => {
     setDispatchedIds((ids) => Array.from(new Set([...ids, selected.id])))
+    setAssignedPlans((ids) => Array.from(new Set([...ids, selected.id])))
   }
 
   const generateTaskBook = () => {
     setTaskBookIds((ids) => Array.from(new Set([...ids, selected.id])))
   }
+
+  const [dispatchExpanded, setDispatchExpanded] = useState(false)
+  const [assignedExpanded, setAssignedExpanded] = useState(true)
 
   const handleWizardImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -548,6 +554,31 @@ export function PlanDispatchStage() {
     const link = document.createElement('a')
     link.href = url
     link.download = '内控检查计划列表.csv'
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const handleExportPlan = () => {
+    if (!selectedPlanId) return
+    const plan = allPlans.find((p) => p.id === selectedPlanId)
+    if (!plan) return
+    const csv = [
+      '字段,内容',
+      `计划编号,${plan.id}`,
+      `计划名称,${plan.name}`,
+      `检查类型,${plan.type}`,
+      `受检单位,${plan.unit}`,
+      `企业层级,${plan.unitLevel || '-'}`,
+      `负责人,${plan.owner}`,
+      `计划周期,${plan.period}`,
+      `检查领域,${plan.checkDomain || '-'}`,
+      `来源,${plan.source}`,
+    ].join('\n')
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `${plan.id}-${plan.name}.csv`
     link.click()
     URL.revokeObjectURL(url)
   }
@@ -767,13 +798,12 @@ export function PlanDispatchStage() {
               <>
                 <SectionTitle>分解结果</SectionTitle>
                 <DataTable
-                  columns={['任务编号', '任务类型', '任务名称', '负责人', '状态', '输出']}
+                  columns={['任务编号', '任务类型', '任务名称', '负责人', '输出']}
                   rows={tasks.map((task) => [
                     task.id,
                     task.type,
                     task.name,
                     task.owner,
-                    <Tag tone={statusTone(task.status)}>{task.status}</Tag>,
                     task.outputs.join(' / '),
                   ])}
                 />
@@ -815,6 +845,30 @@ export function PlanDispatchStage() {
         </Card>
       ) : null}
 
+      {isDispatched && isAssignedPlan ? (
+        <Card
+          title="人员分配方案"
+          note={assignedExpanded ? '已派发任务的人员分配详情' : '已折叠'}
+          action={
+            <button className={`icm-expand-btn ${assignedExpanded ? 'active' : ''}`} type="button" onClick={() => setAssignedExpanded((v) => !v)}>
+              <ChevronDown size={16} />
+            </button>
+          }
+        >
+          {assignedExpanded ? (
+            <DataTable
+              columns={['角色', '人员', '匹配依据', '工作负荷', '回避校验']}
+              rows={[
+                ['检查组长', '张衡', '采购与合同专项经验 6 次', '62%', <Tag tone="green">通过</Tag>],
+                ['合同核验', '李娜', '合同字段比对与取证', '70%', <Tag tone="green">通过</Tag>],
+                ['资金取数', '王锐', '资金流水和审批链核验', '78%', <Tag tone="green">通过</Tag>],
+                ['外部专家', '赵明', '招采合规专家库推荐', '42%', <Tag tone="green">已签保密</Tag>],
+              ]}
+            />
+          ) : null}
+        </Card>
+      ) : null}
+
       </PageFrame>
     )
   }
@@ -848,15 +902,8 @@ export function PlanDispatchStage() {
         subtitle="依据国资厅监督〔2026〕15号文及101号、29号、2号、46号文要求，编制内控检查计划"
         actions={
           <>
-            <input
-              ref={wizardFileInputRef}
-              style={{ display: 'none' }}
-              type="file"
-              accept=".csv,.xls,.xlsx"
-              onChange={handleWizardImport}
-            />
             <Button type="info-soft" icon={<FileText size={15} />} onClick={() => handleSubmitPlan(true)}>保存草稿</Button>
-            <Button type="info-soft" icon={<UploadCloud size={15} />} loading={importing} onClick={() => wizardFileInputRef.current?.click()}>导入</Button>
+            <Button type="info-soft" icon={<Download size={15} />} onClick={() => handleExportPlan()}>导出</Button>
             <Button type="default-soft" onClick={backToList}>取消</Button>
           </>
         }
@@ -930,7 +977,7 @@ export function PlanDispatchStage() {
                     预算工作量
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       <input className="icm-input" style={{ flex: 1 }} value={form.budgetWorkdays} onChange={(e) => updateForm({ budgetWorkdays: e.target.value })} placeholder="例：32" />
-                      <span style={{ color: '#748299', fontSize: 13, whiteSpace: 'nowrap' }}>人天</span>
+                      <span style={{ color: '#748299', fontSize: 13, whiteSpace: 'nowrap' }}>人/天</span>
                     </div>
                   </label>
                 </div>
@@ -1845,7 +1892,7 @@ export function RectifyReportStage() {
               ) : null}
 
               <div className="icm-report-action-bar" style={{ paddingTop: 8 }}>
-                <Button type="info-soft" icon={<UploadCloud size={15} />} onClick={() => setModal('materials')}>选择报告素材</Button>
+                <Button type="info-soft" icon={<ClipboardList size={15} />} onClick={() => setModal('materials')}>选择报告素材</Button>
                 <Button type="info-soft" icon={<FileText size={15} />} onClick={() => setModal('templates')}>选择报告模板</Button>
                 {flow === 'editing' ? (
                   <Button type="primary" icon={<FileText size={15} />} disabled={!canDraft} onClick={generateDraft}>生成报告初稿</Button>
