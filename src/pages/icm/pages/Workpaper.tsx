@@ -1,9 +1,9 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import { ArrowLeft, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, Database, FilePlus2, FileSearch, GitBranch, Loader2, LockKeyhole, Search, X } from 'lucide-react'
 
 import { Button, Card, DataTable, DetailLine, PageFrame, Tag, Toolbar, type Tone } from '../components/IcmPageKit'
 
-type PaperType = '阳性底稿' | '阴性底稿'
+type PaperType = '问题底稿' | '合规底稿'
 type PaperStatus = '草稿' | '取证中' | '一级复核' | '二级复核' | '交叉复核' | '待归档' | '已入库' | '整改中' | '整改销号' | '留档锁定' | '调阅审批'
 type SourceTab = 'evidence' | 'finding' | 'snapshot' | 'material'
 
@@ -68,12 +68,12 @@ const cases: WorkpaperCase[] = [
     title: '工程物资采购合同拆分规避公开招标核查底稿',
     unit: '华北装备制造集团西北分公司',
     field: '采购 / 合同',
-    type: '阳性底稿',
+    type: '问题底稿',
     status: '整改中',
     source: '智能审查结果 SUS-01 自动生成',
     owner: '张衡',
     createdAt: '2026-06-27 10:20',
-    process: '终审阳性后，系统解析取证单并下发问题整改',
+    process: '终审确认后，系统解析取证单并下发问题整改',
     evidenceSheet: {
       id: 'EVS-CG-2026-0451',
       title: '合同台账、招标方案、采购包划分审批记录取证单',
@@ -108,7 +108,7 @@ const cases: WorkpaperCase[] = [
     body: {
       procedure: '抽取 2026 年 1-5 月工程物资采购合同台账，按项目编号、供应商、合同签订日期、合同金额进行聚合比对，并调阅采购包划分审批记录。',
       facts: '同一工程项目在 12 日内连续签订 HT-1182、HT-1183、HT-1184 三份合同，供应商均为宁北机电设备有限公司，合计金额 1180 万元，采购包划分说明缺失。',
-      conclusion: '该事项存在通过拆分合同规避公开招标的重大控制缺陷，已由阳性底稿确认问题并进入整改闭环。',
+      conclusion: '该事项存在通过拆分合同规避公开招标的重大控制缺陷，已由问题底稿确认问题并进入整改闭环。',
       next: '系统已匹配责任部门为采购管理部，整改责任人为采购部负责人和招采中心主任，整改状态为推进中。',
     },
   },
@@ -117,12 +117,12 @@ const cases: WorkpaperCase[] = [
     title: '中标后预付款比例超合同约定核查底稿',
     unit: '财务共享中心',
     field: '资金 / 合同履约',
-    type: '阳性底稿',
+    type: '问题底稿',
     status: '交叉复核',
     source: '资金审查规则 SUS-03 自动生成',
     owner: '王锐',
     createdAt: '2026-06-28 09:45',
-    process: '交叉复核确认后，阳性底稿将生成问题',
+    process: '交叉复核确认后，问题底稿将生成问题',
     evidenceSheet: {
       id: 'EVS-PAY-2026-0455',
       title: '付款审批单、银行回单、合同付款条款取证单',
@@ -148,7 +148,7 @@ const cases: WorkpaperCase[] = [
     body: {
       procedure: '从资金系统抽取大额付款流水，与合同文本中的付款条款、验收单据及审批流进行三方比对。',
       facts: '合同约定预付款比例为 30%，实际于验收前支付 50%，涉及金额 620 万元；审批流程中未见超比例付款专项说明。',
-      conclusion: '目前已形成阳性底稿，待交叉复核确认后进入问题管理并下发整改。',
+      conclusion: '目前已形成问题底稿，待交叉复核确认后进入问题管理并下发整改。',
       next: '需补充合同补充协议、业务特批依据或验收提前确认材料。',
     },
   },
@@ -157,7 +157,7 @@ const cases: WorkpaperCase[] = [
     title: '陪标供应商联系人重复情况核查底稿',
     unit: '华北装备制造集团西北分公司',
     field: '供应商管理',
-    type: '阳性底稿',
+    type: '问题底稿',
     status: '取证中',
     source: '供应商关联核验 SUS-02 自动生成',
     owner: '李娜',
@@ -197,16 +197,16 @@ const cases: WorkpaperCase[] = [
     title: '研发设备采购审批链完整性抽样检查底稿',
     unit: '研发中心',
     field: '采购 / 研发费用',
-    type: '阴性底稿',
+    type: '合规底稿',
     status: '已入库',
     source: '检查人员人工抽样生成',
     owner: '赵明',
     createdAt: '2026-06-30 11:10',
-    process: '阴性底稿终审通过后入库留痕',
+    process: '合规底稿终审通过后入库留痕',
     evidenceSheet: {
       id: 'EVS-INV-2026-0460',
       title: '研发设备采购申请、预算审批、验收入库记录取证单',
-      confirm: '无需问题确认，已作为阴性底稿归档留痕',
+      confirm: '无需问题确认，已作为合规底稿归档留痕',
       parsed: ['抽样 8 笔采购均有预算审批', '验收入库记录完整', '未发现越权审批'],
     },
     reviewFinding: {
@@ -222,13 +222,13 @@ const cases: WorkpaperCase[] = [
     },
     reviewChain: [
       { node: '一级复核', owner: '李娜', status: '通过', opinion: '抽样资料完整。' },
-      { node: '二级复核', owner: '郑刚', status: '通过', opinion: '阴性结论成立。' },
-      { node: '交叉复核', owner: '王锐', status: '不适用', opinion: '阴性底稿无需交叉复核。' },
+      { node: '二级复核', owner: '郑刚', status: '通过', opinion: '正常结论成立。' },
+      { node: '交叉复核', owner: '王锐', status: '不适用', opinion: '合规底稿无需交叉复核。' },
     ],
     body: {
       procedure: '按金额分层抽取 8 笔研发设备采购事项，核查申请、预算、审批、验收、入库资料是否完整。',
       facts: '抽样事项均完成预算审批和验收入库，未发现超预算采购、未验收付款或审批缺失。',
-      conclusion: '未发现控制缺陷，作为阴性底稿入库，不生成问题。',
+      conclusion: '未发现控制缺陷，作为合规底稿入库，不生成问题。',
       next: '底稿和取证单已入库，可按权限申请调阅。',
     },
   },
@@ -237,7 +237,7 @@ const cases: WorkpaperCase[] = [
     title: '劳务外包人员考勤与结算一致性核查底稿',
     unit: '综合服务中心',
     field: '人力 / 合同结算',
-    type: '阳性底稿',
+    type: '问题底稿',
     status: '留档锁定',
     source: '人工检查录入后补充系统取数',
     owner: '陈珂',
@@ -286,7 +286,7 @@ const cases: WorkpaperCase[] = [
     title: '历史整改底稿调阅申请记录',
     unit: '集团内控监督部',
     field: '档案调阅',
-    type: '阴性底稿',
+    type: '合规底稿',
     status: '调阅审批',
     source: '报告中心引用触发调阅申请',
     owner: '档案管理员',
@@ -316,7 +316,7 @@ const cases: WorkpaperCase[] = [
     ],
     body: {
       procedure: '核验申请人、调阅目的、调阅范围、下载权限和有效期。',
-      facts: '报告中心申请引用历史阴性底稿用于说明已覆盖检查范围，需调阅底稿正文和取证单摘要。',
+      facts: '报告中心申请引用历史合规底稿用于说明已覆盖检查范围，需调阅正文和取证单摘要。',
       conclusion: '该事项为调阅审批流程，不生成问题，不进入整改。',
       next: '审批通过后开放 7 日只读权限，下载需单独授权。',
     },
@@ -324,9 +324,9 @@ const cases: WorkpaperCase[] = [
 ]
 
 function tone(status: string): Tone {
-  if (status.includes('重大') || status.includes('阳性') || status.includes('整改中') || status.includes('取证中')) return 'red'
+  if (status.includes('重大') || status.includes('问题底稿') || status.includes('整改中') || status.includes('取证中')) return 'red'
   if (status.includes('待') || status.includes('复核') || status.includes('审批') || status.includes('草稿')) return 'amber'
-  if (status.includes('阴性') || status.includes('通过') || status.includes('已入库') || status.includes('销号') || status.includes('锁定') || status.includes('满足')) return 'green'
+  if (status.includes('合规底稿') || status.includes('通过') || status.includes('已入库') || status.includes('销号') || status.includes('锁定') || status.includes('满足')) return 'green'
   return 'blue'
 }
 
@@ -377,12 +377,12 @@ export default function Workpaper() {
   if (!selected) {
     return (
       <PageFrame
-        title="底稿与问题"
-        subtitle="底稿编制、取证、复核、问题生成和归档管理。"
-        actions={<Button type="primary" icon={<FilePlus2 size={15} />}>新建底稿</Button>}
+        title="审查记录"
+        subtitle="审查记录的编制、取证、复核、问题生成和归档管理。"
+        actions={<Button type="primary" icon={<FilePlus2 size={15} />}>新建记录</Button>}
       >
         <Toolbar>
-          <input className="icm-input" placeholder="搜索底稿编号、单位、领域" />
+          <input className="icm-input" placeholder="搜索记录编号、单位、领域" />
           <select className="icm-select">
             <option>全部状态</option>
             <option>取证中</option>
@@ -393,8 +393,8 @@ export default function Workpaper() {
           </select>
           <select className="icm-select">
             <option>全部类型</option>
-            <option>阳性底稿</option>
-            <option>阴性底稿</option>
+            <option>问题记录</option>
+            <option>正常记录</option>
           </select>
         </Toolbar>
 
@@ -438,38 +438,23 @@ export default function Workpaper() {
 
   return (
     <PageFrame
-      title="底稿与问题"
+      title="审查记录"
       subtitle={`${selected.id} · ${selected.unit} · ${selected.field}`}
       actions={
         <>
-          <Button type="default-soft" icon={<ArrowLeft size={15} />} onClick={() => { setSelectedId(undefined) }}>返回底稿列表</Button>
-          <Button type="primary" icon={<FilePlus2 size={15} />}>新建底稿</Button>
+          <Button type="default-soft" icon={<ArrowLeft size={15} />} onClick={() => { setSelectedId(undefined) }}>返回记录列表</Button>
+          <Button type="primary" icon={<FilePlus2 size={15} />}>新建记录</Button>
         </>
       }
     >
-      <div className="icm-grid cols-2" style={{ alignItems: 'start', gridTemplateColumns: sideCollapsed ? '44px minmax(0,1fr)' : '200px minmax(0,1fr)' }}>
+      <Card title="溯源材料" note="取证单、审查线索、数据快照和业务资料" action={<button className="icm-sidebar-toggle" type="button" onClick={() => setSideCollapsed((value) => !value)} aria-label="展开或收起溯源材料"><ChevronDown size={15} style={{ transform: sideCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }} /></button>}>
+        {!sideCollapsed ? <div className="icm-actions"><Button type="info-soft" icon={<FileSearch size={15} />} onClick={() => setModalTab('evidence')}>取证单</Button><Button type="info-soft" icon={<Search size={15} />} onClick={() => setModalTab('finding')}>审查线索</Button><Button type="info-soft" icon={<Database size={15} />} onClick={() => setModalTab('snapshot')}>数据快照</Button><Button type="info-soft" icon={<ClipboardList size={15} />} onClick={() => setModalTab('material')}>业务资料</Button></div> : null}
+      </Card>
+      <div className="icm-workpaper-detail-grid">
         <div className="icm-reveal-panel">
-          {sideCollapsed ? (
-            <div className="icm-sidebar-collapsed-strip" onClick={() => setSideCollapsed(false)} title="展开操作面板">
-              <ChevronRight size={16} className="icm-ss-icon" />
-              <span className="icm-ss-label">材料</span>
-            </div>
-          ) : (
-            <div>
-              <Card title="溯源材料" action={
-                <button className="icm-sidebar-toggle" type="button" onClick={() => setSideCollapsed(true)} aria-label="折叠" title="折叠">
-                  <ChevronLeft size={15} />
-                </button>
-              }>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <Button type="info-soft" icon={<FileSearch size={15} />} fullWidth onClick={() => setModalTab('evidence')}>取证单</Button>
-                  <Button type="info-soft" icon={<Search size={15} />} fullWidth onClick={() => setModalTab('finding')}>审查线索</Button>
-                  <Button type="info-soft" icon={<Database size={15} />} fullWidth onClick={() => setModalTab('snapshot')}>数据快照</Button>
-                  <Button type="info-soft" icon={<ClipboardList size={15} />} fullWidth onClick={() => setModalTab('material')}>业务资料</Button>
-                </div>
-              </Card>
-            </div>
-          )}
+          <Card title="底稿目录" note="当前检查任务底稿">
+            <div className="icm-workpaper-directory">{cases.map((paper) => <button className={paper.id === selected.id ? 'active' : ''} key={paper.id} type="button" onClick={() => selectPaper(paper.id)}><span>{paper.type}</span>{paper.title}</button>)}</div>
+          </Card>
         </div>
 
         <div className="icm-reveal-panel" key={selected.id}>
@@ -552,7 +537,7 @@ export default function Workpaper() {
                   ) : null}
                 </Card>
                 <Card
-                  title="阳性底稿 · 已关联问题"
+                  title="问题底稿 · 已关联问题"
                   note="问题已确认"
                 >
                   <div className="icm-grid cols-2" style={{ gap: 10 }}>
@@ -641,6 +626,23 @@ export default function Workpaper() {
                 ) : null}
               </div>
             )}
+          </Card>
+        </div>
+        <div className="icm-reveal-panel">
+          <Card title="复核结果" note="基于当前底稿、取证要素和复核节点形成">
+            <div className="icm-workpaper-review-summary">
+              <div><span>底稿状态</span><Tag tone={tone(selected.status)}>{selected.status}</Tag></div>
+              <div><span>取证解析</span><Tag tone={evidenceParsed ? 'green' : 'amber'}>{evidenceParsed ? '已解析' : '待解析'}</Tag></div>
+              <div><span>复核进度</span><strong>{reviewStep}/{reviewNodes.length + 1} 节点</strong></div>
+            </div>
+            <div className="icm-workpaper-review-list">
+              <div><b>事实与取证一致性</b><span>{evidenceParsed ? '已提取取证要素，待复核确认。' : '请先解析取证单。'}</span></div>
+              <div><b>制度依据适配性</b><span>检查程序已关联当前领域控制要求。</span></div>
+              <div><b>结论与整改衔接</b><span>{selected.type === '问题底稿' ? '问题确认后可进入整改追踪。' : '合规结论成立后按权限归档。'}</span></div>
+            </div>
+            <div className="icm-actions" style={{ marginTop: 12 }}>
+              {!evidenceParsed ? <Button type="primary" icon={<FileSearch size={15} />} onClick={parseEvidence}>解析取证</Button> : !allReviewPassed ? <Button type="primary" onClick={doReview}>{reviewStep ? '继续复核' : '开始复核'}</Button> : <Tag tone="green">复核通过</Tag>}
+            </div>
           </Card>
         </div>
       </div>

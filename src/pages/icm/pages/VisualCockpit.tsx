@@ -1,8 +1,8 @@
-﻿import { CheckCircle2, AlertTriangle, TrendingUp } from 'lucide-react'
+import { CheckCircle2, AlertTriangle, TrendingUp } from 'lucide-react'
 import type { EChartsOption } from 'echarts'
 import ReactECharts from 'echarts-for-react'
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 
 import { cockpit, issues, overview, workpapers, rectifications, plans } from '../data'
 import { Card, Tag, type Tone } from '../components/IcmPageKit'
@@ -10,7 +10,7 @@ import { Card, Tag, type Tone } from '../components/IcmPageKit'
 const S = {
   red: issues.filter((i) => i.level === '重大').length,
   overdue: issues.filter((i) => i.status !== '已销号' && i.deadline < '2026-07-06').length,
-  posWp: workpapers.filter((w) => w.result === '阳性').length,
+  posWp: workpapers.filter((w) => w.result === '问题记录').length,
   closed: rectifications.filter((r) => r.lane === '已整改').length,
   get rate() { return Math.round((this.closed / Math.max(rectifications.length, 1)) * 100) },
   get disp() { return plans.filter((p) => p.status === '已派发').length },
@@ -21,11 +21,11 @@ const ALERT_MAJOR = cockpit.alerts.filter((a) => a.level === '重大').length
 const LIVE_ALERTS = [
   ...cockpit.alerts,
   { domain: '计划', level: '正常', text: 'PL-2026-001 采购专项检查方案审批通过，任务 TK-001 已派发。', owner: '检查计划', action: '持续跟踪' },
-  { domain: '底稿', level: '正常', text: 'WP-0460 供应商准入资料抽样核查通过，未形成问题。', owner: '检查底稿', action: '归档留痕' },
+  { domain: '审查记录', level: '正常', text: 'WP-0460 供应商准入资料抽样核查通过，未形成问题。', owner: '审查记录', action: '归档留痕' },
   { domain: '取证', level: '正常', text: 'EV-0312 采购合同台账取证单已归档并完成链上校验。', owner: '取证台账', action: '证据可用' },
-  { domain: '问题', level: '正常', text: 'ISS-090 验收记录补录事项已完成整改。', owner: '底稿与问题', action: '关闭观察' },
+  { domain: '问题', level: '正常', text: 'ISS-090 验收记录补录事项已完成整改。', owner: '问题台账', action: '关闭观察' },
   { domain: '整改', level: '正常', text: 'RC-090 整改佐证复核成立，已回写关闭状态。', owner: '整改闭环', action: '闭环完成' },
-  { domain: '报告', level: '正常', text: 'RPT-001 采购围标风险专项检查报告已同步引用底稿。', owner: '报告中心', action: '草稿完善' },
+  { domain: '报告', level: '正常', text: 'RPT-001 采购围标风险专项检查报告已同步引用审查记录。', owner: '报告中心', action: '草稿完善' },
 ]
 
 const KPI7 = [
@@ -35,7 +35,7 @@ const KPI7 = [
   { v: '86%', l: '证据完整', n: '较上月+9%', c: '#16a34a' },
   { v: '4/8域', l: '审查覆盖', n: '8域全覆盖', c: '#155bd4' },
   { v: LIVE_ALERTS.length + '条', l: '实时预警', n: '重大' + ALERT_MAJOR + '条', c: '#dc2626' },
-  { v: '1项', l: '穿透测试', n: '进行中', c: '#d97706' },
+  { v: '1项', l: '流程核验', n: '进行中', c: '#d97706' },
 ]
 const SEEN = new Set(cockpit.heat.map((h) => h.domain))
 const DOMAIN_ONLY = cockpit.domains
@@ -61,7 +61,7 @@ function alertTone(level: string): Tone {
 const MODS = [
   { v: plans.length.toString(), l: '检查计划', n: S.disp + '项已派发', p: '/plan-workbench', c: '#155bd4' },
   { v: cockpit.metrics[1].value, l: '智能审查', n: '风险线索', p: '/review-workbench', c: '#dc2626' },
-  { v: workpapers.length.toString(), l: '检查底稿', n: S.posWp + '份阳性', p: '/workpaper', c: '#0891b2' },
+  { v: workpapers.length.toString(), l: '审查记录', n: S.posWp + '份问题记录', p: '/workpaper', c: '#0891b2' },
   { v: issues.length.toString(), l: '问题线索', n: S.red + '重大/' + S.overdue + '超期', p: '/workpaper', c: '#d97706' },
   { v: S.rate + '%', l: '整改闭环', n: S.closed + '/' + rectifications.length + '已整改', p: '/rectify', c: '#16a34a' },
   { v: '5', l: '报告中心', n: '2份草稿', p: '/report', c: '#7c3aed' },
@@ -107,18 +107,9 @@ export default function VisualCockpit() {
   return (
     <div style={{ display: 'grid', gridTemplateRows: '34px 132px 206px minmax(0, 1fr) 28px', gap: 8, height: '100%', minHeight: 0, overflow: 'hidden' }}>
 
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, minHeight: 0, border: '1px solid #dbe5f1', borderRadius: 8, background: '#fff', padding: '4px 10px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 0, border: '1px solid #dbe5f1', borderRadius: 8, background: '#fff', padding: '4px 10px' }}>
         <strong style={{ color: '#0b1f43', fontSize: 18, letterSpacing: 0 }}>监督看板</strong>
-        <div style={{ display: 'inline-flex', gap: 4, border: '1px solid #d7e2f0', background: '#f7faff', borderRadius: 7, padding: 2 }}>
-          {TIME_OPTIONS.map((item) => (
-            <button
-              key={item.key}
-              type="button"
-              onClick={() => setTimeRange(item.key)}
-              style={{ height: 22, minWidth: 52, border: 0, borderRadius: 5, background: timeRange === item.key ? '#155bd4' : 'transparent', color: timeRange === item.key ? '#fff' : '#56677f', fontSize: 11, fontWeight: 800, cursor: 'pointer' }}
-            >{item.label}</button>
-          ))}
-        </div>
+        <span style={{ color: '#748299', fontSize: 11 }}>当前统计周期：{activeRange.label}</span>
       </div>
 
       {/* 7 KPIs: row1(4) + row2(3) */}

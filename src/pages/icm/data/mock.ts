@@ -49,7 +49,7 @@ export const overview: Overview = {
   ],
   chain: [
     { key: 'plan', label: '计划审批', status: '审批通过', owner: '集团内控监督部', percent: 100 },
-    { key: 'dispatch', label: '任务派发', status: '已进场', owner: '检查组', percent: 100 },
+    { key: 'dispatch', label: '任务派发', status: '派发中', owner: '检查组', percent: 67 },
     { key: 'collect', label: '数据采集', status: '待补充', owner: '采购部/财务部', percent: 86 },
     { key: 'review', label: '智能审查', status: '人工复核中', owner: '检查组', percent: 72 },
     { key: 'rectify', label: '整改闭环', status: '整改中', owner: '责任部门', percent: 67 },
@@ -94,16 +94,16 @@ export const tasks: Task[] = [
   },
   {
     id: 'TK-002',
-    type: '穿行测试任务',
+    type: '检查任务',
     name: '采购到付款穿行测试',
     unit: overview.unit,
     owner: '李娜',
     reviewer: '张衡',
     start: '2026-06-26',
     end: '2026-07-10',
-    status: '进行中',
-    progress: 70,
-    outputs: ['穿行测试记录', '取证单', '阳性底稿'],
+    status: '待启动',
+    progress: 0,
+    outputs: ['检查记录', '穿行测试记录', '取证单', '问题底稿'],
     blockers: ['供应商准入资料待补充'],
   },
   {
@@ -115,8 +115,8 @@ export const tasks: Task[] = [
     reviewer: '李娜',
     start: '2026-06-27',
     end: '2026-07-08',
-    status: '待复核',
-    progress: 85,
+    status: '待启动',
+    progress: 0,
     outputs: ['取证单', '证据链', '报告引用'],
     blockers: [],
   },
@@ -215,7 +215,7 @@ export const knowledge: KnowledgeBase = {
   ],
   templates: [
     { id: 'TPL-PLAN-001', name: '采购专项检查方案模板', type: '检查方案', version: 'V2026.04', domain: '采购', bindClause: 'LAW-CG-018', reuse: '计划编制审批', docNo: '内控模板〔2026〕TPL-04号', applicableScope: '适用于采购、招标、合同履约类专项检查方案编制，二级及以下企业适用。', sections: [{ heading: '一、检查目标与范围', text: '明确专项检查覆盖的采购项目类型、时间区间和抽样口径，列明被检查单位及业务领域。' }, { heading: '二、检查依据', text: '列明适用的法规条款（集团采购管理办法第 18 条等）、集团制度和历史案例编号。' }, { heading: '三、检查程序与方法', text: '说明采用的检查方法（如短周期合同聚合比对）、抽样规则和取证要求。' }], bindClauseIds: ['LAW-CG-018'], usedByMethodIds: ['MTH-CG-001'], changeLog: [{ version: 'V2026.04', date: '2026-04-10', note: '新增采购包拆分说明章节，细化分批采购审查要点' }, { version: 'V2026.01', date: '2026-01-05', note: '初始版本，覆盖采购招标基本检查要素' }] },
-    { id: 'TPL-WALK-002', name: '采购到付款穿行测试记录模板', type: '穿行测试', version: 'V2026.05', domain: '采购/资金', bindClause: 'LAW-PAY-008', reuse: '穿行测试工作台', docNo: '内控模板〔2026〕TPL-05号', applicableScope: '适用于采购到付款全流程穿行测试，覆盖采购申请、招标、合同签订、验收、付款各节点。', sections: [{ heading: '一、测试节点与穿行路径', text: '列明从采购需求提出到付款完成的完整流程节点，标注每个节点对应的控制措施和判断标准。' }, { heading: '二、测试样本与抽样方法', text: '说明从数据采集结果包中选取的测试样本数量、抽样依据及代表性说明。' }, { heading: '三、异常发现与底稿生成', text: '记录穿行测试过程中发现的流程偏差、控制薄弱环节，并关联生成阳性/阴性底稿。' }], bindClauseIds: ['LAW-PAY-008'], usedByMethodIds: [], changeLog: [{ version: 'V2026.05', date: '2026-05-15', note: '增加验收前置条件校验节点' }, { version: 'V2026.03', date: '2026-03-01', note: '初版' }] },
+    { id: 'TPL-WALK-002', name: '采购到付款穿行测试记录模板', type: '穿行测试', version: 'V2026.05', domain: '采购/资金', bindClause: 'LAW-PAY-008', reuse: '穿行测试工作台', docNo: '内控模板〔2026〕TPL-05号', applicableScope: '适用于采购到付款全流程穿行测试，覆盖采购申请、招标、合同签订、验收、付款各节点。', sections: [{ heading: '一、测试节点与穿行路径', text: '列明从采购需求提出到付款完成的完整流程节点，标注每个节点对应的控制措施和判断标准。' }, { heading: '二、测试样本与抽样方法', text: '说明从数据采集结果包中选取的测试样本数量、抽样依据及代表性说明。' }, { heading: '三、异常发现与记录生成', text: '记录穿行测试过程中发现的流程偏差、控制薄弱环节，并关联生成问题记录或正常记录。' }], bindClauseIds: ['LAW-PAY-008'], usedByMethodIds: [], changeLog: [{ version: 'V2026.05', date: '2026-05-15', note: '增加验收前置条件校验节点' }, { version: 'V2026.03', date: '2026-03-01', note: '初版' }] },
     { id: 'TPL-EV-003', name: '取证单模板', type: '取证', version: 'V2026.03', domain: '通用', bindClause: 'CTRL-KB-003', reuse: '取证单台账', docNo: '内控模板〔2026〕TPL-03号', applicableScope: '适用于各类检查任务的取证工作，取证类型包括调阅、截图、系统取数、访谈等。', sections: [{ heading: '一、取证事项与类型', text: '记录取证来源系统、取证方式和取证时间，标明取证类型（调阅/截图/系统取数/访谈）及存储路径。' }, { heading: '二、证据证明要点', text: '说明取证内容与检查疑点的关联关系，标注证据对检查结论的支撑程度。' }, { heading: '三、完整性与合规要求', text: '取证需满足来源可追溯、内容未篡改的合规要求，系统取数应带链上哈希值。' }], bindClauseIds: [], usedByMethodIds: ['MTH-SUP-002'], changeLog: [{ version: 'V2026.03', date: '2026-03-20', note: '增加链上哈希字段，强化取证完整链要求' }] },
     { id: 'TPL-RPT-004', name: '专项报告模板', type: '报告', version: 'V2026.06', domain: '通用', bindClause: 'LAW-BID-012', reuse: '报告中心', docNo: '内控模板〔2026〕TPL-06号', applicableScope: '适用于各类专项检查报告、整改阶段报告和管理建议书的编制。', sections: [{ heading: '一、检查背景与范围', text: '概述专项检查的立项依据、覆盖期间、被检查单位及业务领域。' }, { heading: '二、主要风险发现与证据链', text: '逐项列明检查发现的风险事项，每组发现需附带底稿编号、取证单编号和法规条款引用。' }, { heading: '三、问题定级与整改建议', text: '按金额标准和影响程度对问题进行定级，提出对应的整改措施和完成时限。' }], bindClauseIds: ['LAW-BID-012'], usedByMethodIds: ['MTH-RAG-003'], changeLog: [{ version: 'V2026.06', date: '2026-06-01', note: '细化证据链引用格式，增加法规条款编号和版本号要求' }, { version: 'V2026.02', date: '2026-02-10', note: '初版' }] },
   ],
@@ -335,10 +335,10 @@ export const evidences: Evidence[] = [
 ]
 
 export const workpapers: Workpaper[] = [
-  { id: 'WP-0451', title: '合同金额拆分规避招标核查', result: '阳性', reviewer: '张衡', status: '审定通过', issue: 'ISS-077', evidenceIds: ['EV-0312', 'EV-0316'], conclusion: '短期连续签订、供应商一致且金额接近阈值，需登记重大问题。' },
-  { id: 'WP-0455', title: '预付款比例异常核查', result: '阳性', reviewer: '张衡', status: '复核中', issue: 'ISS-081', evidenceIds: ['EV-0318'], conclusion: '付款比例高于合同约定，需补充审批依据并整改。' },
-  { id: 'WP-0456', title: '供应商联系人重复核查', result: '阳性', reviewer: '李娜', status: '待补证', issue: 'ISS-079', evidenceIds: ['EV-0321'], conclusion: '供应商独立性存在疑点，需补充工商及联系人说明。' },
-  { id: 'WP-0460', title: '供应商准入资料完整性核查', result: '阴性', reviewer: '李娜', status: '审定通过', issue: '-', evidenceIds: [], conclusion: '已抽样资料未发现准入审批缺失。' },
+  { id: 'WP-0451', title: '合同金额拆分规避招标核查', result: '问题记录', reviewer: '张衡', status: '审定通过', issue: 'ISS-077', evidenceIds: ['EV-0312', 'EV-0316'], conclusion: '短期连续签订、供应商一致且金额接近阈值，需登记重大问题。' },
+  { id: 'WP-0455', title: '预付款比例异常核查', result: '问题记录', reviewer: '张衡', status: '复核中', issue: 'ISS-081', evidenceIds: ['EV-0318'], conclusion: '付款比例高于合同约定，需补充审批依据并整改。' },
+  { id: 'WP-0456', title: '供应商联系人重复核查', result: '问题记录', reviewer: '李娜', status: '待补证', issue: 'ISS-079', evidenceIds: ['EV-0321'], conclusion: '供应商独立性存在疑点，需补充工商及联系人说明。' },
+  { id: 'WP-0460', title: '供应商准入资料完整性核查', result: '正常记录', reviewer: '李娜', status: '审定通过', issue: '-', evidenceIds: [], conclusion: '已抽样资料未发现准入审批缺失。' },
 ]
 
 export const issues: Issue[] = [
@@ -426,7 +426,7 @@ export const icmMockData: IcmMockData = {
 }
 
 export function toneByStatus(value: string): Tone {
-  if (value.includes('重大') || value.includes('异常') || value.includes('阳性') || value.includes('存疑') || value.includes('红色')) return 'red'
+  if (value.includes('重大') || value.includes('异常') || value.includes('问题记录') || value.includes('存疑') || value.includes('红色')) return 'red'
   if (value.includes('重要') || value.includes('关注') || value.includes('待') || value.includes('运行中') || value.includes('橙色') || value.includes('黄色') || value.includes('整改')) return 'amber'
   if (value.includes('通过') || value.includes('完成') || value.includes('归档') || value.includes('确认') || value.includes('成立') || value.includes('销号') || value.includes('关闭')) return 'green'
   return 'blue'

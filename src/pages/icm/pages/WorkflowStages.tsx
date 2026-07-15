@@ -1,6 +1,7 @@
 ﻿import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, CheckCircle2, ChevronDown, ChevronLeft, ClipboardList, Download, FilePlus2, FileText, Play, Search, Send, X } from 'lucide-react'
 import * as XLSX from 'xlsx'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 
 import {
   agents,
@@ -18,6 +19,7 @@ import {
   walkthrough,
   workpapers,
 } from '../data'
+import type { Rectification } from '../data/types'
 import { Button, Card, DataTable, DetailLine, Kpi, PageFrame, Segmented, StepList, Tag, Toolbar, type Tone } from '../components/IcmPageKit'
 
 type DataTab = 'demand' | 'quality' | 'rules'
@@ -124,7 +126,7 @@ const planPool = [
   {
     id: 'PL-2026-028',
     name: '境外投资项目内控专项检查',
-    type: '穿透监管测试',
+    type: '专项检查',
     source: '上级交办',
     status: '待校审',
     unit: '国际业务事业部',
@@ -135,7 +137,7 @@ const planPool = [
     period: '2026-08-01 至 2026-09-15',
     budget: '45 人天',
     basis: '国资委国资厅监督〔2026〕15号文、境外投资管理办法、境外资产监督管理办法',
-    objective: '验证境外投资项目数据回传、授权审批和风险预警专岗配置情况，执行穿透监管测试。',
+    objective: '验证境外投资项目数据回传、授权审批和风险预警专岗配置情况，并对关键控制点实施穿行测试。',
     avoidanceCheck: '已通过',
     blocker: '计划范围待完善',
     next: '完善计划详情',
@@ -143,8 +145,8 @@ const planPool = [
       { node: '计划草拟', owner: '赵明', role: '国际业务部', status: '进行中', date: '2026-07-01', opinion: '检查范围和系统清单待补充。' },
       { node: '内控部门审核', owner: '郑刚', role: '内控部负责人', status: '未提交', date: '-', opinion: '完善后提交线上校审。' },
       { node: '合规审查', owner: '法律合规部', role: '合规审查岗', status: '未提交', date: '-', opinion: '待前置条件满足。' },
-      { node: '党委前置研究', owner: '党委办公室', role: '党委办', status: '未提交', date: '-', opinion: '穿透监管测试类须党委前置研究。' },
-      { node: '董事会审议', owner: '董事会办公室', role: '董事会办', status: '未提交', date: '-', opinion: '穿透监管测试类须经董事会审议。' },
+      { node: '党委前置研究', owner: '党委办公室', role: '党委办', status: '未提交', date: '-', opinion: '重大境外投资事项按制度要求提交前置研究。' },
+      { node: '董事会审议', owner: '董事会办公室', role: '董事会办', status: '未提交', date: '-', opinion: '重大事项按制度要求提交董事会审议。' },
       { node: '分管领导审批', owner: '钱总', role: '分管副总经理', status: '未提交', date: '-', opinion: '待前置审批完成。' },
     ],
   },
@@ -230,7 +232,27 @@ const planPool = [
 
 const splitSteps = ['读取计划范围', '匹配检查规则', '生成任务包', '生成资料清单', '生成派发对象']
 
+const planReviewRules = [
+  ['检查周期', '单位超过 3 年未开展专项内控检查', '通过', '近三年无同类专项检查'],
+  ['重大事项', '涉及重大投资、境外、金融等高风险领域需加强复核', '关注', '当前计划主题命中高风险领域'],
+  ['前置程序', '重大专项检查应配置党委前置研究', '通过', '审批链已包含党委前置研究'],
+  ['资料完整', '计划范围、依据、目标、人员配置必须完整', '通过', '计划详情字段完整'],
+]
+
+const planRecommendRules = [
+  ['长期未检查单位', '领导任期内满 3 年且任期内无检查', '已开启'],
+  ['高风险领域推荐', '采购、资金、金融、境外投资领域触发专项推荐', '已开启'],
+  ['整改反复发生', '同类问题连续两期发生时推荐复查', '已开启'],
+  ['重大投资项目覆盖', '重大投资项目内控检查覆盖率不足时推荐', '已开启'],
+]
+
 export function PlanDispatchStage() {
+  const [searchParams] = useSearchParams()
+  const navigate = useNavigate()
+  const requestedPlanId = searchParams.get('plan')
+  const workView = searchParams.get('view') ?? 'list'
+  const [planTypeFilter, setPlanTypeFilter] = useState('全部类型')
+  const [treeSearch, setTreeSearch] = useState('')
   const wizardFileInputRef = useRef<HTMLInputElement>(null)
   const keyFocusInputRef = useRef<HTMLInputElement>(null)
   const [importing, setImporting] = useState(false)
@@ -242,6 +264,7 @@ export function PlanDispatchStage() {
   const [assignedIds, setAssignedIds] = useState<string[]>([])
   const [dispatchedIds, setDispatchedIds] = useState<string[]>(['PL-2026-021'])
   const [taskBookIds, setTaskBookIds] = useState<string[]>([])
+  const [taskBookPreviewId, setTaskBookPreviewId] = useState<string | null>(null)
   const [assignedPlans, setAssignedPlans] = useState<string[]>(['PL-2026-021'])
   const [splitting, setSplitting] = useState(false)
   const [splitIndex, setSplitIndex] = useState(-1)
@@ -318,7 +341,7 @@ export function PlanDispatchStage() {
       policyBasis: plan.basis || '', objective: plan.objective || '', scopeDescription: '',
       keyFocusAreas: [], samplingRule: '风险导向抽样', samplingDetail: '',
       teamLeader: plan.owner || '', teamMembers: [], needExternalExpert: false,
-      externalExpert: '', approver: '', needParty: true, needBoard: plan.type === '穿透监管测试',
+      externalExpert: '', approver: '', needParty: true, needBoard: false,
     })
     setEditingPlanId(plan.id)
     setCurrentStep('basic')
@@ -333,7 +356,7 @@ export function PlanDispatchStage() {
     const approvals: typeof planPool[number]['approvals'] = []
     approvals.push({ node: '计划草拟', owner: wizardForm.teamLeader || '当前用户', role: '检查组', status: '通过', date: now.toISOString().slice(0, 10), opinion: '手工创建计划。' })
     if (wizardForm.needParty) approvals.push({ node: '党委前置研究', owner: '党委办公室', role: '党委办', status: '待处理', date: '-', opinion: '重大检查事项须党委前置研究。' })
-    if (wizardForm.needBoard) approvals.push({ node: '董事会审议', owner: '董事会办公室', role: '董事会办', status: '待处理', date: '-', opinion: '穿透监管测试类须经董事会审议。' })
+    if (wizardForm.needBoard) approvals.push({ node: '董事会审议', owner: '董事会办公室', role: '董事会办', status: '待处理', date: '-', opinion: '重大事项按制度要求提交董事会审议。' })
     approvals.push({ node: '合规审查', owner: '法律合规部', role: '合规审查岗', status: '待处理', date: '-', opinion: '待合规审查。' })
     approvals.push({ node: '内控部门审核', owner: wizardForm.approver || '待分配', role: '内控部负责人', status: '待处理', date: '-', opinion: '需线上确认检查范围和依据。' })
     approvals.push({ node: '分管领导审批', owner: '待分配', role: '分管领导', status: '待处理', date: '-', opinion: '待线上流转。' })
@@ -394,6 +417,13 @@ export function PlanDispatchStage() {
     const nextView = editingId ? 'detail' : 'list'
     window.setTimeout(() => { resetWizard(); setViewMode(nextView) }, 1500)
   }
+
+  useEffect(() => {
+    if (requestedPlanId && allPlans.some((plan) => plan.id === requestedPlanId)) {
+      setSelectedPlanId(requestedPlanId)
+      setViewMode('detail')
+    }
+  }, [requestedPlanId, allPlans])
 
   const plansForView = allPlans
   const selected = plansForView.find((plan) => plan.id === selectedPlanId) ?? plansForView[0]
@@ -586,6 +616,8 @@ export function PlanDispatchStage() {
   const navigateToDetail = (planId: string) => {
     setSelectedPlanId(planId)
     setViewMode('detail')
+    const targetView = workView === 'split' ? 'split' : 'fill'
+    navigate(`/plan-workbench?view=${targetView}&plan=${planId}`)
   }
 
   const backToList = () => {
@@ -596,6 +628,63 @@ export function PlanDispatchStage() {
     setViewMode('list')
   }
 
+  const planTypes = ['全部类型', ...Array.from(new Set(allPlans.map((plan) => plan.type)))]
+  const treePlans = sortPlans.filter((plan) => {
+    const matchesType = planTypeFilter === '全部类型' || plan.type === planTypeFilter
+    const matchesSearch = !treeSearch.trim() || `${plan.id}${plan.name}${plan.unit}`.includes(treeSearch.trim())
+    return matchesType && matchesSearch
+  })
+  const splitPlans = treePlans.filter((plan) => ['已立项', '已派发', '待派发'].includes(planDisplayStatus(plan)))
+
+  const taskBookPreview = taskBookPreviewId ? allPlans.find((plan) => plan.id === taskBookPreviewId) : null
+  const taskBookModal = taskBookPreview ? (
+    <div className="icm-modal-mask" role="dialog" aria-modal="true">
+      <div className="icm-modal icm-task-book-modal">
+        <div className="icm-modal-head"><div><div className="icm-modal-title">内部控制检查任务书</div><div className="icm-modal-sub">任务书编号：TKB-{taskBookPreview.id.replace('PL-', '')} · 版本 V1.0</div></div><button className="icm-modal-close" type="button" onClick={() => setTaskBookPreviewId(null)} aria-label="关闭"><X size={16} /></button></div>
+        <div className="icm-task-book">
+          <h1>内部控制检查任务书</h1>
+          <p className="icm-task-book-no">编号：TKB-{taskBookPreview.id.replace('PL-', '')}</p>
+          <h2>一、任务基本信息</h2>
+          <div className="icm-task-book-meta"><span>检查计划：{taskBookPreview.name}</span><span>受检单位：{taskBookPreview.unit}</span><span>检查期间：{taskBookPreview.period}</span><span>检查领域：{taskBookPreview.checkDomain}</span><span>检查组长：{taskBookPreview.owner}</span><span>预计工作量：{taskBookPreview.budget}</span></div>
+          <h2>二、检查依据与目标</h2><p><b>检查依据：</b>{taskBookPreview.basis}</p><p><b>检查目标：</b>{taskBookPreview.objective}</p>
+          <h2>三、检查范围与重点</h2><p>围绕“{taskBookPreview.riskTheme}”开展检查，核验制度执行、业务审批、资料留痕、关键控制点和异常事项；必要时实施穿行测试并形成审查记录。</p>
+          <h2>四、任务安排与预期输出</h2>
+          <DataTable columns={['任务名称', '责任人员', '主要工作内容', '预期输出']} rows={[['资料调阅与台账核验', taskBookPreview.owner, '调阅' + taskBookPreview.checkDomain + '业务制度、台账、审批资料和关键业务记录。', '资料核验记录 / 取证材料'], ['关键控制点测试', taskBookPreview.owner, '围绕' + taskBookPreview.riskTheme + '核验授权审批、职责分离、留痕和异常处置。', '检查底稿 / 问题线索'], ['必要的穿行测试', taskBookPreview.owner, '选取典型业务样本，核验业务流程与控制执行的一致性。', '穿行测试记录 / 审查结论']]} />
+          <h2>五、工作要求</h2><ol><li>检查组应遵守保密、回避和工作纪律要求，检查过程全程留痕。</li><li>受检单位应按资料清单及时提供真实、完整的业务资料。</li><li>审查线索须经人工复核，形成审查记录后方可转为问题并派发整改。</li><li>检查结束后完成底稿复核、问题整改跟踪、报告编制和归档。</li></ol>
+          <div className="icm-task-book-sign"><span>检查组长：{taskBookPreview.owner}</span><span>内控监督部</span><span>签发日期：2026年7月14日</span></div>
+        </div>
+        <div className="icm-modal-foot"><Button type="default-soft" onClick={() => window.print()}>打印预览</Button><Button type="primary" onClick={() => setTaskBookPreviewId(null)}>关闭</Button></div>
+      </div>
+    </div>
+  ) : null
+
+  if (workView === 'approve' && viewMode !== 'create') {
+    return (
+      <PageFrame title="任务审批" subtitle="直接查看检查计划列表，按计划状态处理审批事项。">
+        <Toolbar><Search size={16} color="#607089" /><input className="icm-input" placeholder="搜索计划编号、名称、单位、负责人" value={searchKeyword} onChange={(event) => setSearchKeyword(event.target.value)} /><select className="icm-select" value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value)}><option>全部来源</option><option>年度计划</option><option>风险预警</option><option>审计协同</option><option>上级交办</option><option>巡视移送</option></select><span className="icm-toolbar-spacer" /><Tag tone="blue">共 {sortPlans.length} 条</Tag></Toolbar>
+        <Card title="计划列表" note="选择计划后进入原计划工作区处理审批与后续事项。"><DataTable columns={['计划编号', '计划名称', '检查类型', '受检单位', '负责人', '计划周期', '来源', '状态', '操作']} rows={sortPlans.map((plan) => [plan.id, plan.name, plan.type, plan.unit, plan.owner, plan.period, plan.source, <Tag tone={statusTone(planDisplayStatus(plan))}>{planDisplayStatus(plan)}</Tag>, <button className="icm-link" type="button" onClick={() => navigateToDetail(plan.id)}>查看</button>])} onRowClick={(index) => navigateToDetail(sortPlans[index].id)} /></Card>
+      {taskBookModal}
+      </PageFrame>
+    )
+  }
+
+  if (workView === 'fill' && viewMode !== 'create') {
+    return (
+      <PageFrame title="发起计划填报" subtitle="左侧按检查类型浏览计划；右侧可新建计划或查看当前计划详情。">
+        <WorkflowLayout side={<><Card title="计划列表" note="按检查类型或名称选择计划"><div className="icm-modal-search" style={{ marginBottom: 8 }}><Search size={14} /><input value={treeSearch} onChange={(event) => setTreeSearch(event.target.value)} placeholder="搜索计划名称或编号" /></div><select className="icm-select" style={{ width: '100%', marginBottom: 10 }} value={planTypeFilter} onChange={(event) => setPlanTypeFilter(event.target.value)}>{planTypes.map((type) => <option key={type}>{type}</option>)}</select><div className="icm-plan-tree">{treePlans.map((plan) => <button className={`icm-plan-tree-item ${plan.id === selected.id ? 'active' : ''}`} key={plan.id} type="button" onClick={() => navigateToDetail(plan.id)}>{plan.name}</button>)}{!treePlans.length ? <div className="icm-empty-inline">未找到匹配计划</div> : null}</div></Card></>} main={<><Card title="计划填报" note="从新建或已有计划开始"><div className="icm-actions"><Button type="primary" icon={<FilePlus2 size={15} />} onClick={() => { resetWizard(); setViewMode('create') }}>新建计划</Button><span style={{ color: '#748299', fontSize: 12 }}>选择左侧计划可查看详情</span></div></Card>{viewMode === 'detail' ? <Card title="计划详情" note={`${selected.id} · ${planDisplayStatus(selected)}`} action={isDraft ? <Button type="default-soft" onClick={() => startEditPlan(selected)}>编辑</Button> : undefined}><div className="icm-grid cols-2"><DetailLine label="计划名称" value={selected.name} /><DetailLine label="检查类型" value={selected.type} /><DetailLine label="受检单位" value={selected.unit} /><DetailLine label="检查领域" value={selected.checkDomain || '-'} /><DetailLine label="风险主题" value={selected.riskTheme} /><DetailLine label="计划周期" value={selected.period} /><DetailLine label="检查依据" value={selected.basis} /><DetailLine label="检查目标" value={selected.objective} /><DetailLine label="负责人" value={selected.owner} /><DetailLine label="当前状态" value={<Tag tone={statusTone(planDisplayStatus(selected))}>{planDisplayStatus(selected)}</Tag>} /></div></Card> : <Card title="填报说明" note="点击新建计划开始填报"><div className="icm-empty-inline">当前未选择计划。可新建计划，或在左侧选择已有计划查看详情。</div></Card>}</>} />
+      </PageFrame>
+    )
+  }
+
+  if (workView === 'split' && viewMode !== 'create') {
+    const splitSelected = splitPlans.find((plan) => plan.id === selected.id) ?? splitPlans[0]
+    return (
+      <PageFrame title="任务分解" subtitle="仅展示已立项、待派发和已派发计划；选择计划后处理任务分解。">
+        <WorkflowLayout side={<Card title="计划列表" note="仅显示可分解计划；支持搜索"><div className="icm-modal-search" style={{ marginBottom: 8 }}><Search size={14} /><input value={treeSearch} onChange={(event) => setTreeSearch(event.target.value)} placeholder="搜索计划名称或编号" /></div><select className="icm-select" style={{ width: '100%', marginBottom: 10 }} value={planTypeFilter} onChange={(event) => setPlanTypeFilter(event.target.value)}>{planTypes.map((type) => <option key={type}>{type}</option>)}</select><div className="icm-plan-tree">{splitPlans.map((plan) => <button className={`icm-plan-tree-item ${plan.id === splitSelected?.id ? 'active' : ''}`} key={plan.id} type="button" onClick={() => navigateToDetail(plan.id)}>{plan.name}</button>)}{!splitPlans.length ? <div className="icm-empty-inline">未找到可分解计划</div> : null}</div></Card>} main={splitSelected ? <Card title="任务分解" note={`${splitSelected.id} · ${planDisplayStatus(splitSelected)}`} action={<Button type="primary" icon={<Send size={15} />} loading={splitting} onClick={splitTasks}>{isSplit ? '重新分解' : '任务分解'}</Button>}>{splitting ? <StepList steps={splitSteps.map((step, index) => ({ title: `${step}${index === splitIndex ? ' · 处理中' : index < splitIndex ? ' · 完成' : ''}`, text: index === splitIndex ? '处理中' : index < splitIndex ? '已完成' : '等待处理' }))} /> : isSplit ? <><DataTable columns={['任务编号', '任务类型', '任务名称', '负责人', '输出']} rows={tasks.map((task) => [task.id, task.type, task.name, task.owner, task.outputs.join(' / ')])} /><div className="icm-actions" style={{ marginTop: 12 }}><Button type="success-soft" onClick={generateTaskBook}>生成检查任务书</Button>{hasTaskBook ? <Button type="default-soft" onClick={() => setTaskBookPreviewId(splitSelected.id)}>预览任务书</Button> : null}<div className="icm-toolbar-spacer" /><Button type="primary" onClick={dispatchTasks}>任务派单</Button></div></> : <DataTable columns={['准备项', '状态', '说明']} rows={[['计划状态', <Tag tone="green">已立项</Tag>, '可执行任务分解'], ['资料清单', <Tag tone="amber">待分解</Tag>, '分解后自动生成'], ['人员配置', <Tag tone="gray">待分配</Tag>, '分解后匹配检查组']]}/>}</Card> : <Card title="任务分解"><div className="icm-empty-inline">当前筛选条件下没有已立项或已派发计划。</div></Card>} />
+        {taskBookModal}
+      </PageFrame>
+    )
+  }
   if (viewMode === 'list') {
     return (
       <PageFrame
@@ -719,6 +808,29 @@ export function PlanDispatchStage() {
           <DetailLine label="资料需求" value={isSplit ? '5 类，已纳入分解结果' : '5 类，待分解生成'} />
         </div>
       </Card>
+      <div className="icm-grid cols-2">
+        <Card title="计划复核规则" note="提交校审前自动校验计划口径">
+          <DataTable
+            columns={['规则类型', '复核规则', '结果', '说明']}
+            rows={planReviewRules.map((item) => [
+              item[0],
+              item[1],
+              <Tag tone={item[2] === '通过' ? 'green' : 'amber'}>{item[2]}</Tag>,
+              item[3],
+            ])}
+          />
+        </Card>
+        <Card title="计划推荐规则" note="用于发现应纳入计划的检查对象">
+          <DataTable
+            columns={['推荐规则', '触发口径', '是否开启']}
+            rows={planRecommendRules.map((item) => [
+              item[0],
+              item[1],
+              <Tag tone="green">{item[2]}</Tag>,
+            ])}
+          />
+        </Card>
+      </div>
       {showApprovalChain ? (
         <Card
           title="审批链路"
@@ -789,7 +901,7 @@ export function PlanDispatchStage() {
             <div className="icm-grid cols-2">
               <DetailLine label="检查任务" value="1 项" />
               <DetailLine label="资料采集任务" value="1 项" />
-              <DetailLine label="穿行测试任务" value="1 项" />
+              <DetailLine label="流程核验" value="执行中可按检查要点发起" />
               <DetailLine label="取证任务" value="1 项" />
               <DetailLine label="计划状态" value={<Tag tone={isDispatched ? 'green' : 'amber'}>{isDispatched ? '已派发' : '待派发'}</Tag>} />
               <DetailLine label="检查任务书" value={<Tag tone={hasTaskBook ? 'green' : 'gray'}>{hasTaskBook ? '已入库' : '待生成'}</Tag>} />
@@ -826,6 +938,7 @@ export function PlanDispatchStage() {
                 />
                 <div className="icm-actions" style={{ marginTop: 12 }}>
                   <Button type="success-soft" onClick={generateTaskBook}>生成检查任务书</Button>
+                  {hasTaskBook ? <Button type="default-soft" onClick={() => setTaskBookPreviewId(selected.id)}>预览任务书</Button> : null}
                   <div className="icm-toolbar-spacer" />
                   <Button type="primary" onClick={dispatchTasks}>任务派单</Button>
                 </div>
@@ -878,7 +991,7 @@ export function PlanDispatchStage() {
     const chainPreview = [
       { node: '计划草拟', owner: form.teamLeader || '当前用户', role: '检查组', status: '通过', opinion: '手工创建计划。' },
       ...(form.needParty ? [{ node: '党委前置研究', owner: '党委办公室', role: '党委办', status: '待处理' as const, opinion: '重大检查事项须党委前置研究。' }] : []),
-      ...(form.needBoard ? [{ node: '董事会审议', owner: '董事会办公室', role: '董事会办', status: '待处理' as const, opinion: '穿透监管测试类须经董事会审议。' }] : []),
+      ...(form.needBoard ? [{ node: '董事会审议', owner: '董事会办公室', role: '董事会办', status: '待处理' as const, opinion: '重大事项按制度要求提交董事会审议。' }] : []),
       { node: '合规审查', owner: '法律合规部', role: '合规审查岗', status: '待处理' as const, opinion: '待合规审查。' },
       { node: '内控部门审核', owner: form.approver || '待分配', role: '内控部负责人', status: '待处理' as const, opinion: '需线上确认检查范围和依据。' },
       { node: '分管领导审批', owner: '待分配', role: '分管领导', status: '待处理' as const, opinion: '待线上流转。' },
@@ -925,8 +1038,8 @@ export function PlanDispatchStage() {
                 <div className="icm-grid cols-3" style={{ marginTop: 14 }}>
                   <label style={{ display: 'grid', gap: 4, color: '#334155', fontSize: 13 }}>
                     检查类型 <span style={{ color: '#b91c1c' }}>*</span>
-                    <select className="icm-select" style={{ width: '100%' }} value={form.type} onChange={(e) => updateForm({ type: e.target.value, ...(e.target.value !== '穿透监管测试' ? { needBoard: false } : {}) })}>
-                      <option>专项检查</option><option>专项抽查</option><option>穿透监管测试</option><option>临时检查</option>
+                    <select className="icm-select" style={{ width: '100%' }} value={form.type} onChange={(e) => updateForm({ type: e.target.value })}>
+                      <option>专项检查</option><option>专项抽查</option><option>临时检查</option>
                     </select>
                   </label>
                   <label style={{ display: 'grid', gap: 4, color: '#334155', fontSize: 13 }}>
@@ -1128,10 +1241,9 @@ export function PlanDispatchStage() {
                     <input type="checkbox" checked={form.needParty} onChange={(e) => updateForm({ needParty: e.target.checked })} />
                     党委（党组）前置研究（15号文第12条）
                   </label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#334155', fontSize: 13, opacity: form.type === '穿透监管测试' ? 1 : 0.45 }}>
-                    <input type="checkbox" checked={form.needBoard} disabled={form.type !== '穿透监管测试'} onChange={(e) => updateForm({ needBoard: e.target.checked })} />
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#334155', fontSize: 13, opacity: 1 }}>
+                    <input type="checkbox" checked={form.needBoard}  onChange={(e) => updateForm({ needBoard: e.target.checked })} />
                     董事会审议审批
-                    {form.type !== '穿透监管测试' ? <span style={{ color: '#a16207', fontSize: 11 }}>（仅穿透监管测试可用）</span> : null}
                   </label>
                 </div>
                 <div className="icm-actions" style={{ justifyContent: 'space-between', marginTop: 16, paddingTop: 14, borderTop: '1px solid #edf2f8' }}>
@@ -1312,7 +1424,7 @@ export function DataRulesStage() {
             title="数据包详情"
             note={selected.id}
             action={
-              <Segmented
+              <Segmented<DataTab>
                 value={tab}
                 onChange={setTab}
                 options={[
@@ -1397,7 +1509,7 @@ export function SmartReviewStage() {
             title="线索详情"
             note={selected.id}
             action={
-              <Segmented
+              <Segmented<ReviewTab>
                 value={tab}
                 onChange={setTab}
                 options={[
@@ -1455,21 +1567,21 @@ export function WorkpaperIssueStage() {
   const selectedIssue = issues.find((issue) => issue.workpaperId === selectedPaper.id)
   const relatedRectification = rectifications.find((item) => item.id === selectedIssue?.rectificationId)
   const evidenceRequestNo = `EVS-${selectedPaper.id.replace('WP-', '2026-')}`
-  const canGenerateIssue = selectedPaper.result === '阳性' && selectedPaper.status === '审定通过'
+  const canGenerateIssue = selectedPaper.result === '问题记录' && selectedPaper.status === '审定通过'
   const evidenceComplete = linkedEvidence.length > 0 && linkedEvidence.every((item) => item.status === '已归档')
   const sourceLabel = selectedFinding ? `智能审查结果 ${selectedFinding.id}` : '人工检查录入'
   const processMode = selectedPaper.status === '待补证'
     ? '补充取证后再提交复核'
     : selectedPaper.status === '复核中'
       ? '等待二/三级复核结论'
-      : selectedPaper.result === '阴性'
+      : selectedPaper.result === '正常记录'
         ? '终审通过后直接归档'
         : '终审通过后生成问题'
 
   return (
     <PageFrame
-      title="底稿与问题"
-      subtitle="以检查底稿为主对象管理取证、复核和问题生成；审查结果只作为辅助来源，不直接进入整改或报告。"
+      title="审查记录"
+      subtitle="以审查记录为主对象管理取证、复核和问题生成；审查结果作为辅助来源，不直接进入整改或报告。"
       actions={<Button type="primary" icon={<ClipboardList size={15} />} onClick={() => selectedPaper && setShowEvidenceSheet(true)}>查看内嵌取证单</Button>}
     >
       <WorkflowLayout
@@ -1487,7 +1599,7 @@ export function WorkpaperIssueStage() {
                     <div className="icm-list-title">{paper.title}</div>
                     <div className="icm-list-meta">
                       {paper.id} · 来源：{paper.evidenceIds.length ? '审查结果生成' : '人工抽样检查'}<br />
-                      处理：{paper.status === '审定通过' ? paper.result === '阴性' ? '归档' : '生成问题' : paper.status}
+                      处理：{paper.status === '审定通过' ? paper.result === '正常记录' ? '归档' : '生成问题' : paper.status}
                     </div>
                   </div>
                   <Tag tone={statusTone(paper.result)}>{paper.result}</Tag>
@@ -1522,7 +1634,7 @@ export function WorkpaperIssueStage() {
                     <h3>一、检查程序</h3>
                     <p>依据检查标准库规则、任务资料清单和人工复核要求，对相关业务样本执行数据核验、附件调阅、审批链检查和必要访谈。</p>
                     <h3>二、取证事实</h3>
-                    <p>{linkedEvidence.length ? linkedEvidence.map((item) => `${item.title}（${item.type}，${item.status}）`).join('；') : '当前底稿已形成阴性检查记录，未发现需补充的异常证据。'}</p>
+                    <p>{linkedEvidence.length ? linkedEvidence.map((item) => `${item.title}（${item.type}，${item.status}）`).join('；') : '当前记录已形成正常检查记录，未发现需补充的异常证据。'}</p>
                     <h3>三、复核结论</h3>
                     <p>{selectedPaper.conclusion}</p>
                   </div>
@@ -1532,16 +1644,16 @@ export function WorkpaperIssueStage() {
                     rows={[[
                       evidenceRequestNo,
                       '数据核验 / 附件调阅 / 事实确认',
-                      selectedPaper.result === '阳性' ? '需确认签字' : '归档留痕',
-                      linkedEvidence.map((item) => item.id).join(' / ') || '阴性记录说明',
-                      evidenceComplete || selectedPaper.result === '阴性' ? <Tag tone="green">满足</Tag> : <Tag tone="amber">待补证</Tag>,
+                      selectedPaper.result === '问题记录' ? '需确认签字' : '归档留痕',
+                      linkedEvidence.map((item) => item.id).join(' / ') || '正常记录说明',
+                      evidenceComplete || selectedPaper.result === '正常记录' ? <Tag tone="green">满足</Tag> : <Tag tone="amber">待补证</Tag>,
                     ]]}
                   />
                 </Card>
 
-                {(selectedIssue || canGenerateIssue || selectedPaper.result === '阴性') ? (
+                {(selectedIssue || canGenerateIssue || selectedPaper.result === '正常记录') ? (
                   <Card
-                    title={selectedIssue ? '问题闭环' : selectedPaper.result === '阴性' ? '归档结果' : '生成问题'}
+                    title={selectedIssue ? '问题闭环' : selectedPaper.result === '正常记录' ? '归档结果' : '生成问题'}
                     action={canGenerateIssue && !selectedIssue ? <Button type="primary">生成问题</Button> : null}
                   >
                     {selectedIssue ? (
@@ -1553,7 +1665,7 @@ export function WorkpaperIssueStage() {
                       </div>
                     ) : (
                       <div className="icm-empty-inline">
-                        {selectedPaper.result === '阴性' ? '该底稿终审后直接归档，不生成问题。' : '该阳性底稿已终审通过，可从这里生成问题并进入整改。'}
+                        {selectedPaper.result === '正常记录' ? '该记录终审后直接归档，不生成问题。' : '该问题记录已终审通过，可从这里生成问题并进入整改。'}
                       </div>
                     )}
                     <SectionTitle>辅助追溯链路</SectionTitle>
@@ -1563,7 +1675,7 @@ export function WorkpaperIssueStage() {
                         ['审查结果', selectedFinding.id, <Tag tone={statusTone(selectedFinding.status)}>{selectedFinding.status}</Tag>, '只作为底稿来源'],
                         ['检查底稿', selectedPaper.id, <Tag tone={statusTone(selectedPaper.status)}>{selectedPaper.status}</Tag>, '主处理对象'],
                         ['取证单', evidenceRequestNo, <Tag tone={evidenceComplete ? 'green' : 'amber'}>{evidenceComplete ? '已归档' : '待完善'}</Tag>, '内嵌在底稿中'],
-                        ['问题', selectedIssue?.id ?? '-', <Tag tone={selectedIssue ? statusTone(selectedIssue.status) : 'gray'}>{selectedIssue?.status ?? '未生成'}</Tag>, '由终审阳性底稿生成'],
+                        ['问题', selectedIssue?.id ?? '-', <Tag tone={selectedIssue ? statusTone(selectedIssue.status) : 'gray'}>{selectedIssue?.status ?? '未生成'}</Tag>, '由终审问题记录生成'],
                       ]}
                     />
                   </Card>
@@ -1597,7 +1709,7 @@ export function WorkpaperIssueStage() {
             <DataTable
               columns={['证据编号', '证据名称', '类型', '来源系统', '链路哈希', '关联底稿', '状态']}
               rows={(linkedEvidence.length ? linkedEvidence : [{
-                id: '阴性说明',
+                id: '正常记录说明',
                 title: '抽样检查未发现异常，取证单记录检查过程和结论',
                 type: '检查记录',
                 sourceSystem: '检查人员录入',
@@ -1799,6 +1911,9 @@ export function RectifyReportStage() {
               <DetailLine label="问题编号" value={srcIssue?.id ?? '待关联'} />
               <DetailLine label="问题等级" value={srcIssue ? <Tag tone={statusTone(srcIssue.level)}>{srcIssue.level}</Tag> : '待关联'} />
               <DetailLine label="整改期限" value={srcIssue?.deadline ?? '-'} />
+              <DetailLine label="整改属性" value="问题整改" />
+              <DetailLine label="整改类型" value="持续整改" />
+              <DetailLine label="责任人员" value={srcIssue ? `${selected.owner}负责人 / 检查组复核` : '待确认'} />
             </div>
             <div className="icm-subsection-head"><div className="icm-card-title">整改进度</div></div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -1818,6 +1933,8 @@ export function RectifyReportStage() {
               <div className="icm-grid cols-2" style={{ gap: 6 }}>
                 <DetailLine label="关联问题" value={`${srcIssue.id} · ${srcIssue.title}`} />
                 <DetailLine label="问题等级" value={<Tag tone={statusTone(srcIssue.level)}>{srcIssue.level}</Tag>} />
+                <DetailLine label="问题事实" value={srcIssue.fact} />
+                <DetailLine label="整改建议" value={srcIssue.suggestion} />
                 <DetailLine label="来源底稿" value={srcWorkpaper ? `${srcWorkpaper.id} · ${srcWorkpaper.title}` : '待关联'} />
                 <DetailLine label="取证附件" value={srcEvidence.map((e) => e.id).join(' / ') || '待关联'} />
               </div>
@@ -1837,6 +1954,17 @@ export function RectifyReportStage() {
                 ])}
               />
             ) : <div className="icm-empty-inline">暂无佐证材料，责任部门整改中。</div>}
+          </Card>
+
+          <Card title="整改成果与验收口径" note="整改中只展示进展，不允许编制报告">
+            <DataTable
+              columns={['事项', '当前情况', '后续要求']}
+              rows={[
+                ['整改成果', selected.writeBack, '责任部门完成措施后补充佐证材料'],
+                ['验收口径', '检查组核对事实、制度修订、流程执行和佐证材料', '验收通过后状态变为已整改'],
+                ['销号记录', '暂未销号', '已整改后形成验收意见和报告素材'],
+              ]}
+            />
           </Card>
 
         </div>
@@ -1880,6 +2008,17 @@ export function RectifyReportStage() {
               ) : (
                 <div className="icm-empty-inline">当前整改事项未关联问题</div>
               )}
+
+              <SectionTitle>整改成果与验收</SectionTitle>
+              <DataTable
+                columns={['类别', '内容', '状态']}
+                rows={[
+                  ['整改成果', selected.writeBack, <Tag tone="green">已整改</Tag>],
+                  ['验收意见', `检查组已核验 ${selected.proof} 份佐证材料，复核结论：${selected.verify}`, <Tag tone="green">验收通过</Tag>],
+                  ['销号记录', '整改事项已满足报告编制条件，待报告审核发布后归档。', <Tag tone="amber">待归档</Tag>],
+                  ['账销案存', '问题整改完成后保留问题、底稿、取证和报告关联关系。', <Tag tone="blue">持续留痕</Tag>],
+                ]}
+              />
 
               {!draftReady ? (
                 <>
